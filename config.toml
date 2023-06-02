@@ -1,0 +1,7 @@
+[address_map.juno]
+contract_address = "juno1u2gw57lm4yu9zz572cpv54f9az3xgm6cm3jx3r4d59q5u8avpwdsc8d2wa"
+relayer_address = "juno19fxfjvj5qyl9f9hplf5v3vl8zuxhaaveqrx04z"
+
+
+[network_rpc]
+juno = "https://juno-testnet-api.polkachu.com"
