@@ -1,9 +1,9 @@
-package main
+package monitor
 
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -33,19 +33,6 @@ type BalResponse struct {
 	Pagination Pagination `json:"pagination"`
 }
 
-type Relayer struct {
-	ContractAddress string `mapstructure:"contract_address"`
-	RelayerAddress  string `mapstructure:"relayer_address"`
-	Denom           string `mapstructure:"denom"`
-	Threshold       int64  `mapstructure:"threshold"`
-}
-
-type Config struct {
-	CronInterval string             `mapstructure:"cron_interval"`
-	AddressMap   map[string]Relayer `mapstructure:"address_map"`
-	NetworkRpc   map[string]string  `mapstructure:"network_rpc"`
-}
-
 func checkBalance(threshold int64, network, denom, rpc, relayerAddress string) error {
 	bal := fmt.Sprintf("%s/cosmos/bank/v1beta1/balances/%s", rpc, relayerAddress)
 	balResp, err := http.Get(bal)
@@ -54,7 +41,7 @@ func checkBalance(threshold int64, network, denom, rpc, relayerAddress string) e
 	}
 	defer balResp.Body.Close()
 
-	balBody, err := ioutil.ReadAll(balResp.Body)
+	balBody, err := io.ReadAll(balResp.Body)
 	if err != nil {
 		return err
 	}
@@ -90,7 +77,7 @@ func checkQuery(network, rpc, address string) error {
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := ioutil.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-package main
+package monitor
 
 import (
 	"context"
@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/slack-go/slack"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+
+	"github.com/ojo-network/contractMonitor/config"
 )
 
 const (
@@ -25,8 +25,6 @@ var (
 	errchan    chan error
 	check      sync.Mutex
 	globallist map[string]int64
-	token      string
-	channel    string
 
 	LowBalance     = "Low Balance"
 	StaleRequestID = "No New Request id"
@@ -35,7 +33,7 @@ var (
 const RELAYER = "cw-relayer"
 
 var rootCmd = &cobra.Command{
-	Use:   "cw-relayer [config-file]",
+	Use:   "monitor [config-file]",
 	Args:  cobra.ExactArgs(1),
 	Short: "cw-relayer monitor",
 	RunE:  cwRelayerCmdHandler,
@@ -49,27 +47,17 @@ func Execute() {
 }
 
 func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
-	godotenv.Load(".env")
-	viper.SetConfigFile(args[0])
-	err := viper.ReadInConfig()
-	if err != nil {
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
-	}
-
-	var config Config
-	err = viper.Unmarshal(&config)
+	config, accessToken, err := config.ParseConfig(args)
 	if err != nil {
 		return err
 	}
 
-	token = os.Getenv("SLACK_TOKEN")
-	channel = os.Getenv("SLACK_CHANNEL")
-
-	client := slack.New(token, slack.OptionDebug(false))
+	client := slack.New(accessToken.SlackToken, slack.OptionDebug(false))
 	slackchan = make(chan slack.Attachment, len(config.AddressMap))
 
 	errchan = make(chan error, len(config.AddressMap))
 	globallist = make(map[string]int64)
+
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 
 	cronDuration, err := time.ParseDuration(config.CronInterval)
@@ -78,38 +66,47 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx, cancel := context.WithCancel(cmd.Context())
+	var wg sync.WaitGroup
 	for network, asset := range config.AddressMap {
 		globallist[asset.ContractAddress] = 0
 		rpc := config.NetworkRpc[network]
-		go func(threshold int64, network, denom, rpc, relayer, contractAddress string) {
+		wg.Add(1)
+		go func(ctx context.Context, threshold int64, network, denom, rpc, relayer, contractAddress string) {
+			defer wg.Done()
 			for {
-				if err := checkBalance(threshold, network, denom, rpc, relayer); err != nil {
-					errchan <- err
-				}
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					if err := checkBalance(threshold, network, denom, rpc, relayer); err != nil {
+						errchan <- err
+					}
 
-				err := checkQuery(network, rpc, contractAddress)
-				if err != nil {
-					errchan <- err
-				}
+					err := checkQuery(network, rpc, contractAddress)
+					if err != nil {
+						errchan <- err
+					}
 
-				time.Sleep(cronDuration)
+					time.Sleep(cronDuration)
+				}
 			}
-		}(asset.Threshold, network, asset.Denom, rpc, asset.RelayerAddress, asset.ContractAddress)
+		}(ctx, asset.Threshold, network, asset.Denom, rpc, asset.RelayerAddress, asset.ContractAddress)
 	}
 
 	go func() {
 		for err := range errchan {
-			logger.Log().Err(err).Msg("Error in monitoring")
+			logger.Err(err).Msg("Error in monitoring")
 		}
 	}()
 
 	go func() {
 		for attachment := range slackchan {
-			_, timestamp, err := client.PostMessage(channel, slack.MsgOptionAttachments(attachment))
-			logger.Log().Str("Posted at timestamp", timestamp).Msg("slack message posted")
+			_, timestamp, err := client.PostMessage(accessToken.SlackChannel, slack.MsgOptionAttachments(attachment))
 			if err != nil {
 				errchan <- err
 			}
+
+			logger.Info().Str("Posted at timestamp", timestamp).Msg("slack message posted")
 		}
 	}()
 
@@ -117,6 +114,9 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	for {
 		select {
 		case <-ctx.Done():
+			logger.Info().Msg("closing monitor, waiting for all routines to exit")
+
+			wg.Wait() // waiting for all goroutines to exit
 			close(errchan)
 			close(slackchan)
 			return nil
@@ -126,9 +126,7 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 
 func trapSignal(cancel context.CancelFunc) {
 	sigCh := make(chan os.Signal, 1)
-
-	signal.Notify(sigCh, syscall.SIGTERM)
-	signal.Notify(sigCh, syscall.SIGINT)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGQUIT)
 
 	go func() {
 		<-sigCh
