@@ -1,14 +1,4 @@
-IMAGE_NAME := relayer-monitor
-DOCKERFILE := Dockerfile
+BUILD_DIR ?= $(CURDIR)/build
 
-.PHONY: docker-build
-
-docker-build:
-	docker build -t $(IMAGE_NAME) -f $(DOCKERFILE) .
-
-docker-run:
-	${MAKE} docker-build
-	docker run --env-file .env ${IMAGE_NAME}
-
-build:
-	go build -o ./build/monitor .
+build: go.sum
+	CGO_ENABLED=0 go build -mod=readonly -o $(BUILD_DIR)/monitor ./...

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/slack-go/slack"
 )
@@ -106,23 +107,28 @@ func checkQuery(network, rpc, address string) error {
 
 func createLowBalanceAttachment(balance, denom, relayerAddress, network string) slack.Attachment {
 	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("%s %s", network, RELAYER),
-		Title:   LowBalance,
-		Color:   "FF0000",
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, RELAYER),
+		Title:   fmt.Sprintf(":exclamation: %s", LowBalance),
+		Color:   "danger",
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Relayer Address",
-				Value: relayerAddress,
+				Value: fmt.Sprintf("```%s```", relayerAddress),
+				Short: false,
 			},
 			{
 				Title: "Current balance",
-				Value: fmt.Sprintf("%s%s", balance, denom),
+				Value: fmt.Sprintf("```%s%s```", balance, denom),
+				Short: true,
 			},
 			{
 				Title: "Network",
-				Value: network,
+				Value: fmt.Sprintf("```%s```", network),
+				Short: true,
 			},
 		},
+		Footer: "Monitor Bot",
+		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
 	}
 
 	return attachment
@@ -130,27 +136,33 @@ func createLowBalanceAttachment(balance, denom, relayerAddress, network string) 
 
 func createStaleRequestIDAttachment(oldRequestID int64, currentRequestID string, contractAddress, network string) slack.Attachment {
 	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("%s %s", network, RELAYER),
-		Title:   StaleRequestID,
-		Color:   "FF0000",
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, RELAYER),
+		Title:   fmt.Sprintf(":exclamation: %s", StaleRequestID),
+		Color:   "danger",
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Contract Address",
-				Value: contractAddress,
+				Value: fmt.Sprintf("```%s```", contractAddress),
+				Short: false,
 			},
 			{
 				Title: "Current Request ID",
-				Value: currentRequestID,
+				Value: fmt.Sprintf("```%s```", currentRequestID),
+				Short: true,
 			},
 			{
 				Title: "Old Request ID",
-				Value: strconv.FormatInt(oldRequestID, 10),
+				Value: fmt.Sprintf("```%s```", strconv.FormatInt(oldRequestID, 10)),
+				Short: true,
 			},
 			{
 				Title: "Network",
-				Value: network,
+				Value: fmt.Sprintf("```%s```", network),
+				Short: false,
 			},
 		},
+		Footer: "Monitor Bot",
+		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
 	}
 
 	return attachment
