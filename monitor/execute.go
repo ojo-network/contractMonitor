@@ -71,14 +71,14 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 		globallist[asset.ContractAddress] = 0
 		rpc := config.NetworkRpc[network]
 		wg.Add(1)
-		go func(ctx context.Context, threshold int64, network, denom, rpc, relayer, contractAddress string) {
+		go func(ctx context.Context, threshold, warning int64, network, denom, rpc, relayer, contractAddress string) {
 			defer wg.Done()
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				default:
-					if err := checkBalance(threshold, network, denom, rpc, relayer); err != nil {
+					if err := checkBalance(threshold, warning, network, denom, rpc, relayer); err != nil {
 						errchan <- err
 					}
 
@@ -90,7 +90,7 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 					time.Sleep(cronDuration)
 				}
 			}
-		}(ctx, asset.Threshold, network, asset.Denom, rpc, asset.RelayerAddress, asset.ContractAddress)
+		}(ctx, asset.Threshold, asset.WarningThreshold, network, asset.Denom, rpc, asset.RelayerAddress, asset.ContractAddress)
 	}
 
 	go func() {

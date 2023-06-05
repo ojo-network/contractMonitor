@@ -34,7 +34,7 @@ type BalResponse struct {
 	Pagination Pagination `json:"pagination"`
 }
 
-func checkBalance(threshold int64, network, denom, rpc, relayerAddress string) error {
+func checkBalance(threshold, warning int64, network, denom, rpc, relayerAddress string) error {
 	bal := fmt.Sprintf("%s/cosmos/bank/v1beta1/balances/%s", rpc, relayerAddress)
 	balResp, err := http.Get(bal)
 	if err != nil {
@@ -61,8 +61,8 @@ func checkBalance(threshold int64, network, denom, rpc, relayerAddress string) e
 			return err
 		}
 
-		if amount <= threshold {
-			slackchan <- createLowBalanceAttachment(balance.Amount, denom, relayerAddress, network)
+		if amount <= warning {
+			slackchan <- createLowBalanceAttachment((amount <= warning) && (amount > threshold), balance.Amount, denom, relayerAddress, network)
 		}
 	}
 
@@ -71,7 +71,6 @@ func checkBalance(threshold int64, network, denom, rpc, relayerAddress string) e
 
 func checkQuery(network, rpc, address string) error {
 	url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", rpc, address, deviation)
-
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -105,7 +104,7 @@ func checkQuery(network, rpc, address string) error {
 	return nil
 }
 
-func createLowBalanceAttachment(balance, denom, relayerAddress, network string) slack.Attachment {
+func createLowBalanceAttachment(warning bool, balance, denom, relayerAddress, network string) slack.Attachment {
 	attachment := slack.Attachment{
 		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, RELAYER),
 		Title:   fmt.Sprintf(":exclamation: %s", LowBalance),
@@ -129,6 +128,10 @@ func createLowBalanceAttachment(balance, denom, relayerAddress, network string) 
 		},
 		Footer: "Monitor Bot",
 		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
+	}
+
+	if warning {
+		attachment.Color = "ff9966"
 	}
 
 	return attachment

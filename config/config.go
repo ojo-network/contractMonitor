@@ -15,10 +15,11 @@ type (
 	}
 
 	Relayer struct {
-		ContractAddress string `mapstructure:"contract_address"`
-		RelayerAddress  string `mapstructure:"relayer_address"`
-		Denom           string `mapstructure:"denom"`
-		Threshold       int64  `mapstructure:"threshold"`
+		ContractAddress  string `mapstructure:"contract_address"`
+		RelayerAddress   string `mapstructure:"relayer_address"`
+		Denom            string `mapstructure:"denom"`
+		WarningThreshold int64  `mapstructure:"warning_threshold"`
+		Threshold        int64  `mapstructure:"threshold"`
 	}
 
 	AccessToken struct {
