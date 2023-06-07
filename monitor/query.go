@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -36,13 +37,35 @@ type (
 )
 
 type cosmwasmChecker struct {
-	threshold, warning                                   int64
-	network, denom, rpc, contractAddress, relayerAddress string
-	reportMedian, reportDeviation                        bool
-	requestID, deviationID, medianID                     int64
+	threshold       int64
+	warning         int64
+	network         string
+	denom           string
+	rpc             string
+	contractAddress string
+	relayerAddress  string
+	reportMedian    bool
+	reportDeviation bool
+	requestID       int64
+	deviationID     int64
+	medianID        int64
+	logger          zerolog.Logger
 }
 
-func newCosmwasmChecker(ctx context.Context, duration time.Duration, threshold, warning int64, network, denom, rpc, contractAddress, relayerAddress string, reportMedian, reportDeviation bool) {
+func newCosmwasmChecker(
+	ctx context.Context,
+	duration time.Duration,
+	threshold int64,
+	warning int64,
+	network string,
+	denom string,
+	rpc string,
+	contractAddress string,
+	relayerAddress string,
+	reportMedian bool,
+	reportDeviation bool,
+	logger zerolog.Logger,
+) {
 	checker := &cosmwasmChecker{
 		threshold:       threshold,
 		warning:         warning,
@@ -53,6 +76,7 @@ func newCosmwasmChecker(ctx context.Context, duration time.Duration, threshold, 
 		relayerAddress:  relayerAddress,
 		reportMedian:    reportMedian,
 		reportDeviation: reportDeviation,
+		logger:          logger,
 	}
 
 	go checker.startCron(ctx, duration)
@@ -68,13 +92,22 @@ func (c *cosmwasmChecker) startCron(ctx context.Context, duration time.Duration)
 		default:
 			err := c.checkBalance()
 			if err != nil {
-				errchan <- err
+				c.logger.Err(err).
+					Str("relayer", c.relayerAddress).
+					Str("contract", c.contractAddress).
+					Str("network", c.network).
+					Msg("Error in querying balance")
 			}
 
 			err = c.checkQuery(ctx)
 			if err != nil {
-				errchan <- err
+				c.logger.Err(err).
+					Str("relayer", c.relayerAddress).
+					Str("contract", c.contractAddress).
+					Str("network", c.network).
+					Msg("Error in querying request ids")
 			}
+
 			time.Sleep(duration)
 		}
 	}

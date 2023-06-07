@@ -30,7 +30,6 @@ type IDS struct {
 
 var (
 	slackchan chan slack.Attachment
-	errchan   chan error
 	wg        sync.WaitGroup
 
 	LowBalance              = "Low Balance"
@@ -69,9 +68,7 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	client := slack.New(accessToken.SlackToken, slack.OptionDebug(false))
 	slackchan = make(chan slack.Attachment, len(config.AddressMap))
 
-	errchan = make(chan error, len(config.AddressMap))
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
-
 	cronDuration, err := time.ParseDuration(config.CronInterval)
 	if err != nil {
 		return err
@@ -93,20 +90,15 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 			asset.RelayerAddress,
 			asset.ReportMedian,
 			asset.ReportDeviation,
+			logger,
 		)
 	}
-
-	go func() {
-		for err := range errchan {
-			logger.Err(err).Msg("Error in monitoring")
-		}
-	}()
 
 	go func() {
 		for attachment := range slackchan {
 			_, timestamp, err := client.PostMessage(accessToken.SlackChannel, slack.MsgOptionAttachments(attachment))
 			if err != nil {
-				errchan <- err
+				logger.Err(err).Msg("error posting slack message")
 			}
 
 			logger.Info().Str("Posted at timestamp", timestamp).Msg("slack message posted")
@@ -120,7 +112,6 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 			logger.Info().Msg("closing monitor, waiting for all routines to exit")
 
 			wg.Wait() // waiting for all goroutines to exit
-			close(errchan)
 			close(slackchan)
 			return nil
 		}
