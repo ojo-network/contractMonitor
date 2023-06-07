@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,34 +9,79 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/slack-go/slack"
+	"golang.org/x/sync/errgroup"
 )
 
-type Response struct {
-	Data struct {
-		Rate        string `json:"rate"`
-		ResolveTime string `json:"resolve_time"`
-		RequestID   string `json:"request_id"`
-	} `json:"data"`
+type (
+	Response struct {
+		Data struct {
+			RequestID string `json:"request_id"`
+		} `json:"data"`
+	}
+
+	Balance struct {
+		Denom  string `json:"denom"`
+		Amount string `json:"amount"`
+	}
+
+	Pagination struct {
+		NextKey *string `json:"next_key"`
+		Total   string  `json:"total"`
+	}
+
+	BalResponse struct {
+		Balances   []Balance  `json:"balances"`
+		Pagination Pagination `json:"pagination"`
+	}
+)
+
+type cosmwasmChecker struct {
+	threshold, warning                                   int64
+	network, denom, rpc, contractAddress, relayerAddress string
+	reportMedian, reportDeviation                        bool
+	requestID, deviationID, medianID                     int64
 }
 
-type Balance struct {
-	Denom  string `json:"denom"`
-	Amount string `json:"amount"`
+func newCosmwasChecker(ctx context.Context, duration time.Duration, threshold, warning int64, network, denom, rpc, contractAddress, relayerAddress string, reportMedian, reportDeviation bool) {
+	checker := &cosmwasmChecker{
+		threshold:       threshold,
+		warning:         warning,
+		network:         network,
+		denom:           denom,
+		rpc:             rpc,
+		contractAddress: contractAddress,
+		relayerAddress:  relayerAddress,
+		reportMedian:    reportMedian,
+		reportDeviation: reportDeviation,
+	}
+
+	go checker.startCron(ctx, duration)
 }
 
-type Pagination struct {
-	NextKey *string `json:"next_key"`
-	Total   string  `json:"total"`
+func (c *cosmwasmChecker) startCron(ctx context.Context, duration time.Duration) {
+	for {
+		select {
+		case <-ctx.Done():
+			wg.Done()
+			return
+
+		default:
+			err := c.checkBalance()
+			if err != nil {
+				errchan <- err
+			}
+
+			err = c.checkQuery(ctx)
+			if err != nil {
+				errchan <- err
+			}
+			time.Sleep(duration)
+		}
+	}
 }
 
-type BalResponse struct {
-	Balances   []Balance  `json:"balances"`
-	Pagination Pagination `json:"pagination"`
-}
-
-func checkBalance(threshold, warning int64, network, denom, rpc, relayerAddress string) error {
-	bal := fmt.Sprintf("%s/cosmos/bank/v1beta1/balances/%s", rpc, relayerAddress)
+func (c *cosmwasmChecker) checkBalance() error {
+	bal := fmt.Sprintf("%s/cosmos/bank/v1beta1/balances/%s", c.rpc, c.relayerAddress)
 	balResp, err := http.Get(bal)
 	if err != nil {
 		return err
@@ -52,7 +98,7 @@ func checkBalance(threshold, warning int64, network, denom, rpc, relayerAddress 
 		return err
 	}
 	for _, balance := range balResponse.Balances {
-		if balance.Denom != denom {
+		if balance.Denom != c.denom {
 			continue
 		}
 
@@ -61,112 +107,118 @@ func checkBalance(threshold, warning int64, network, denom, rpc, relayerAddress 
 			return err
 		}
 
-		if amount <= warning {
-			slackchan <- createLowBalanceAttachment((amount <= warning) && (amount > threshold), balance.Amount, denom, relayerAddress, network)
+		if amount <= c.warning {
+			slackchan <- createLowBalanceAttachment((amount <= c.warning) && (amount > c.threshold), balance.Amount, c.denom, c.relayerAddress, c.network)
 		}
 	}
 
 	return nil
 }
 
-func checkQuery(network, rpc, address string) error {
-	url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", rpc, address, deviation)
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
+	g, _ := errgroup.WithContext(ctx)
 
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
+	g.Go(func() error {
+		url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, rate)
+		resp, err := http.Get(url)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
 
-	var response Response
-	if err := json.Unmarshal(responseBody, &response); err != nil {
-		return err
-	}
+		responseBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
 
-	num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
-	if err != nil {
-		return err
-	}
+		var response Response
+		if err := json.Unmarshal(responseBody, &response); err != nil {
+			return err
+		}
 
-	check.Lock()
-	defer check.Unlock()
+		num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
+		if err != nil {
+			return err
+		}
 
-	requestID := globallist[address]
-	globallist[address] = num
-	if num <= requestID {
-		slackchan <- createStaleRequestIDAttachment(num, response.Data.RequestID, address, network)
-	}
+		if num <= c.requestID {
+			slackchan <- createStaleRequestIDAttachment(StaleRateRequestID, c.requestID, num, c.contractAddress, c.network)
+			return nil
+		}
 
-	return nil
-}
+		c.requestID = num
+		return nil
+	})
 
-func createLowBalanceAttachment(warning bool, balance, denom, relayerAddress, network string) slack.Attachment {
-	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, RELAYER),
-		Title:   fmt.Sprintf(":exclamation: %s", LowBalance),
-		Color:   "danger",
-		Fields: []slack.AttachmentField{
-			{
-				Title: "Relayer Address",
-				Value: fmt.Sprintf("```%s```", relayerAddress),
-				Short: false,
-			},
-			{
-				Title: "Current balance",
-				Value: fmt.Sprintf("```%s%s```", balance, denom),
-				Short: true,
-			},
-			{
-				Title: "Network",
-				Value: fmt.Sprintf("```%s```", network),
-				Short: true,
-			},
-		},
-		Footer: "Monitor Bot",
-		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
-	}
+	if c.reportDeviation {
+		g.Go(func() error {
+			url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, deviation)
+			resp, err := http.Get(url)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
 
-	if warning {
-		attachment.Color = "ff9966"
-	}
+			responseBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
 
-	return attachment
-}
+			var response Response
+			if err := json.Unmarshal(responseBody, &response); err != nil {
+				return err
+			}
 
-func createStaleRequestIDAttachment(oldRequestID int64, currentRequestID string, contractAddress, network string) slack.Attachment {
-	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, RELAYER),
-		Title:   fmt.Sprintf(":exclamation: %s", StaleRequestID),
-		Color:   "danger",
-		Fields: []slack.AttachmentField{
-			{
-				Title: "Contract Address",
-				Value: fmt.Sprintf("```%s```", contractAddress),
-				Short: false,
-			},
-			{
-				Title: "Current Request ID",
-				Value: fmt.Sprintf("```%s```", currentRequestID),
-				Short: true,
-			},
-			{
-				Title: "Old Request ID",
-				Value: fmt.Sprintf("```%s```", strconv.FormatInt(oldRequestID, 10)),
-				Short: true,
-			},
-			{
-				Title: "Network",
-				Value: fmt.Sprintf("```%s```", network),
-				Short: false,
-			},
-		},
-		Footer: "Monitor Bot",
-		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
+			num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
+			if err != nil {
+				return err
+			}
+
+			if num <= c.deviationID {
+				slackchan <- createStaleRequestIDAttachment(StaleDeviationRequestID, c.deviationID, num, c.contractAddress, c.network)
+				return nil
+			}
+
+			// update to latest id
+			c.deviationID = num
+			return nil
+		})
 	}
 
-	return attachment
+	if c.reportMedian {
+		g.Go(func() error {
+			url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, median)
+			resp, err := http.Get(url)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			responseBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+
+			var response Response
+			if err := json.Unmarshal(responseBody, &response); err != nil {
+				return err
+			}
+
+			num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
+			if err != nil {
+				return err
+			}
+
+			if num <= c.deviationID {
+				slackchan <- createStaleRequestIDAttachment(StaleMedianRequestID, c.deviationID, num, c.contractAddress, c.network)
+				return nil
+			}
+
+			// update to latest id
+			c.medianID = num
+			return nil
+		})
+	}
+
+	return g.Wait()
 }

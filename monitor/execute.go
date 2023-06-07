@@ -18,19 +18,33 @@ import (
 
 const (
 	deviation = "eyJnZXRfZGV2aWF0aW9uX3JlZiI6IHsic3ltYm9sIjogIkFUT00ifX0="
+	median    = "eyJnZXRfbWVkaWFuX3JlZiI6IHsic3ltYm9sIjogIkFUT00ifX0="
+	rate      = "eyJnZXRfcmVmIjogeyJzeW1ib2wiOiAiQVRPTSJ9fQ=="
 )
+
+type IDS struct {
+	requestID   int64
+	medianID    int64
+	deviationID int64
+}
 
 var (
-	slackchan  chan slack.Attachment
-	errchan    chan error
-	check      sync.Mutex
-	globallist map[string]int64
+	slackchan chan slack.Attachment
+	errchan   chan error
+	wg        sync.WaitGroup
 
-	LowBalance     = "Low Balance"
-	StaleRequestID = "No New Request id"
+	LowBalance              = "Low Balance"
+	StaleRateRequestID      = "No New Request id"
+	StaleMedianRequestID    = "No New Median id"
+	StaleDeviationRequestID = "No New Deviation id"
 )
 
-const RELAYER = "cw-relayer"
+const (
+	RELAYER      = "cw-relayer"
+	RATE_ID      = "Rate Request id"
+	MEDIAN_ID    = "Median Rate Request id"
+	DEVIATION_ID = "Deviation Request id"
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "monitor [config-file]",
@@ -56,8 +70,6 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	slackchan = make(chan slack.Attachment, len(config.AddressMap))
 
 	errchan = make(chan error, len(config.AddressMap))
-	globallist = make(map[string]int64)
-
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 
 	cronDuration, err := time.ParseDuration(config.CronInterval)
@@ -66,31 +78,10 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx, cancel := context.WithCancel(cmd.Context())
-	var wg sync.WaitGroup
 	for network, asset := range config.AddressMap {
-		globallist[asset.ContractAddress] = 0
 		rpc := config.NetworkRpc[network]
 		wg.Add(1)
-		go func(ctx context.Context, threshold, warning int64, network, denom, rpc, relayer, contractAddress string) {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					if err := checkBalance(threshold, warning, network, denom, rpc, relayer); err != nil {
-						errchan <- err
-					}
-
-					err := checkQuery(network, rpc, contractAddress)
-					if err != nil {
-						errchan <- err
-					}
-
-					time.Sleep(cronDuration)
-				}
-			}
-		}(ctx, asset.Threshold, asset.WarningThreshold, network, asset.Denom, rpc, asset.RelayerAddress, asset.ContractAddress)
+		newCosmwasChecker(ctx, cronDuration, asset.Threshold, asset.WarningThreshold, network, asset.Denom, rpc, asset.ContractAddress, RELAYER)
 	}
 
 	go func() {
