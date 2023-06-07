@@ -6,6 +6,8 @@ relayer_address = "juno1rkhrfuq7k2k68k0hctrmv8efyxul6tgn8hny6y"
 denom="ujuno"
 warning_threshold=5000000
 threshold=1000000
+report_median=true
+report_deviation=true
 
 [network_rpc]
 juno-testnet = "https://juno-api.polkachu.com"

@@ -81,7 +81,19 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	for network, asset := range config.AddressMap {
 		rpc := config.NetworkRpc[network]
 		wg.Add(1)
-		newCosmwasChecker(ctx, cronDuration, asset.Threshold, asset.WarningThreshold, network, asset.Denom, rpc, asset.ContractAddress, RELAYER)
+		newCosmwasmChecker(
+			ctx,
+			cronDuration,
+			asset.Threshold,
+			asset.WarningThreshold,
+			network,
+			asset.Denom,
+			rpc,
+			asset.ContractAddress,
+			asset.RelayerAddress,
+			asset.ReportMedian,
+			asset.ReportDeviation,
+		)
 	}
 
 	go func() {

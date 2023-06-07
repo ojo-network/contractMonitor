@@ -42,7 +42,7 @@ type cosmwasmChecker struct {
 	requestID, deviationID, medianID                     int64
 }
 
-func newCosmwasChecker(ctx context.Context, duration time.Duration, threshold, warning int64, network, denom, rpc, contractAddress, relayerAddress string, reportMedian, reportDeviation bool) {
+func newCosmwasmChecker(ctx context.Context, duration time.Duration, threshold, warning int64, network, denom, rpc, contractAddress, relayerAddress string, reportMedian, reportDeviation bool) {
 	checker := &cosmwasmChecker{
 		threshold:       threshold,
 		warning:         warning,
@@ -108,7 +108,13 @@ func (c *cosmwasmChecker) checkBalance() error {
 		}
 
 		if amount <= c.warning {
-			slackchan <- createLowBalanceAttachment((amount <= c.warning) && (amount > c.threshold), balance.Amount, c.denom, c.relayerAddress, c.network)
+			slackchan <- createLowBalanceAttachment(
+				(amount <= c.warning) && (amount > c.threshold),
+				balance.Amount,
+				c.denom,
+				c.relayerAddress,
+				c.network,
+			)
 		}
 	}
 
@@ -118,41 +124,9 @@ func (c *cosmwasmChecker) checkBalance() error {
 func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 	g, _ := errgroup.WithContext(ctx)
 
-	g.Go(func() error {
-		url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, rate)
-		resp, err := http.Get(url)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-
-		responseBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-
-		var response Response
-		if err := json.Unmarshal(responseBody, &response); err != nil {
-			return err
-		}
-
-		num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
-		if err != nil {
-			return err
-		}
-
-		if num <= c.requestID {
-			slackchan <- createStaleRequestIDAttachment(StaleRateRequestID, c.requestID, num, c.contractAddress, c.network)
-			return nil
-		}
-
-		c.requestID = num
-		return nil
-	})
-
-	if c.reportDeviation {
-		g.Go(func() error {
-			url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, deviation)
+	g.Go(
+		func() error {
+			url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, rate)
 			resp, err := http.Get(url)
 			if err != nil {
 				return err
@@ -174,50 +148,106 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 				return err
 			}
 
-			if num <= c.deviationID {
-				slackchan <- createStaleRequestIDAttachment(StaleDeviationRequestID, c.deviationID, num, c.contractAddress, c.network)
+			if num <= c.requestID {
+				slackchan <- createStaleRequestIDAttachment(
+					StaleRateRequestID,
+					c.requestID,
+					num,
+					c.contractAddress,
+					c.network,
+				)
 				return nil
 			}
 
-			// update to latest id
-			c.deviationID = num
+			c.requestID = num
 			return nil
-		})
+		},
+	)
+
+	if c.reportDeviation {
+		g.Go(
+			func() error {
+				url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, deviation)
+				resp, err := http.Get(url)
+				if err != nil {
+					return err
+				}
+				defer resp.Body.Close()
+
+				responseBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
+
+				var response Response
+				if err := json.Unmarshal(responseBody, &response); err != nil {
+					return err
+				}
+
+				num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
+				if err != nil {
+					return err
+				}
+
+				if num <= c.deviationID {
+					slackchan <- createStaleRequestIDAttachment(
+						StaleDeviationRequestID,
+						c.deviationID,
+						num,
+						c.contractAddress,
+						c.network,
+					)
+					return nil
+				}
+
+				// update to latest id
+				c.deviationID = num
+				return nil
+			},
+		)
 	}
 
 	if c.reportMedian {
-		g.Go(func() error {
-			url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, median)
-			resp, err := http.Get(url)
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
+		g.Go(
+			func() error {
+				url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, median)
+				resp, err := http.Get(url)
+				if err != nil {
+					return err
+				}
+				defer resp.Body.Close()
 
-			responseBody, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return err
-			}
+				responseBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
 
-			var response Response
-			if err := json.Unmarshal(responseBody, &response); err != nil {
-				return err
-			}
+				var response Response
+				if err := json.Unmarshal(responseBody, &response); err != nil {
+					return err
+				}
 
-			num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
-			if err != nil {
-				return err
-			}
+				num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
+				if err != nil {
+					return err
+				}
 
-			if num <= c.deviationID {
-				slackchan <- createStaleRequestIDAttachment(StaleMedianRequestID, c.deviationID, num, c.contractAddress, c.network)
+				if num <= c.deviationID {
+					slackchan <- createStaleRequestIDAttachment(
+						StaleMedianRequestID,
+						c.deviationID,
+						num,
+						c.contractAddress,
+						c.network,
+					)
+					return nil
+				}
+
+				// update to latest id
+				c.medianID = num
 				return nil
-			}
-
-			// update to latest id
-			c.medianID = num
-			return nil
-		})
+			},
+		)
 	}
 
 	return g.Wait()
