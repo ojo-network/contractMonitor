@@ -57,6 +57,8 @@ func Execute() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	rootCmd.AddCommand(getVersionCmd())
 }
 
 func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
