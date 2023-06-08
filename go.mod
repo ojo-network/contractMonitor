@@ -1,4 +1,4 @@
-module github.com/ojo-network/relayerMonitor
+module github.com/ojo-network/contractMonitor
 
 go 1.19
 

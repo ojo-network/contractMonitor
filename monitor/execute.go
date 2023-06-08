@@ -13,7 +13,7 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/spf13/cobra"
 
-	"github.com/ojo-network/relayerMonitor/config"
+	"github.com/ojo-network/contractMonitor/config"
 )
 
 const (
@@ -72,7 +72,7 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	logger.Info().Msg("Relayer monitor starting...")
+	logger.Info().Msg("Contract monitor starting...")
 
 	ctx, cancel := context.WithCancel(cmd.Context())
 	for network, asset := range config.AddressMap {
@@ -93,7 +93,10 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 			logger,
 		)
 
-		logger.Info().Str("network", network).Str("relayer address", asset.RelayerAddress).Msg("monitoring")
+		logger.Info().Str("network", network).
+			Str("relayer address", asset.RelayerAddress).
+			Str("contract address", asset.ContractAddress).
+			Msg("monitoring")
 	}
 
 	go func() {

@@ -1,4 +1,4 @@
-project_name: relayerMonitor
+project_name: contractMonitor
 
 env:
   - CGO_ENABLED=1
@@ -9,8 +9,8 @@ before:
 
 builds:
   - main: ./
-    id: "relayerMonitor"
-    binary: relayerMonitor
+    id: "contractMonitor"
+    binary: contractMonitor
     mod_timestamp: "{{ .CommitTimestamp }}"
     flags:
       - -trimpath

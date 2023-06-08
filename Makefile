@@ -3,4 +3,4 @@ build:
 
 start:
 	${MAKE} build
-	./relayerMonitor ./config.toml
+	./contractMonitor ./config.toml
