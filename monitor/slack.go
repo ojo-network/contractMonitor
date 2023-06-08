@@ -11,7 +11,7 @@ import (
 
 func createLowBalanceAttachment(warning bool, balance, denom, relayerAddress, network string) slack.Attachment {
 	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, RELAYER),
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
 		Title:   fmt.Sprintf(":exclamation: %s", LowBalance),
 		Color:   "danger",
 		Fields: []slack.AttachmentField{
@@ -44,7 +44,7 @@ func createLowBalanceAttachment(warning bool, balance, denom, relayerAddress, ne
 
 func createStaleRequestIDAttachment(requestTitle string, oldRequestID int64, currentRequestID int64, contractAddress, network string) slack.Attachment {
 	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, RELAYER),
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
 		Title:   fmt.Sprintf(":exclamation: %s", requestTitle),
 		Color:   "danger",
 		Fields: []slack.AttachmentField{
@@ -55,12 +55,12 @@ func createStaleRequestIDAttachment(requestTitle string, oldRequestID int64, cur
 			},
 			{
 				Title: "Current Request ID",
-				Value: fmt.Sprintf("```%s```", currentRequestID),
+				Value: fmt.Sprintf("```%d```", currentRequestID),
 				Short: true,
 			},
 			{
 				Title: "Old Request ID",
-				Value: fmt.Sprintf("```%s```", strconv.FormatInt(oldRequestID, 10)),
+				Value: fmt.Sprintf("```%d```", oldRequestID),
 				Short: true,
 			},
 			{

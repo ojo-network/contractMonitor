@@ -159,24 +159,7 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 
 	g.Go(
 		func() error {
-			url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, rate)
-			resp, err := http.Get(url)
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-
-			responseBody, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return err
-			}
-
-			var response Response
-			if err := json.Unmarshal(responseBody, &response); err != nil {
-				return err
-			}
-
-			num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
+			num, err := c.returnLatestID(rate)
 			if err != nil {
 				return err
 			}
@@ -200,24 +183,7 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 	if c.reportDeviation {
 		g.Go(
 			func() error {
-				url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, deviation)
-				resp, err := http.Get(url)
-				if err != nil {
-					return err
-				}
-				defer resp.Body.Close()
-
-				responseBody, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return err
-				}
-
-				var response Response
-				if err := json.Unmarshal(responseBody, &response); err != nil {
-					return err
-				}
-
-				num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
+				num, err := c.returnLatestID(deviation)
 				if err != nil {
 					return err
 				}
@@ -243,24 +209,7 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 	if c.reportMedian {
 		g.Go(
 			func() error {
-				url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, median)
-				resp, err := http.Get(url)
-				if err != nil {
-					return err
-				}
-				defer resp.Body.Close()
-
-				responseBody, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return err
-				}
-
-				var response Response
-				if err := json.Unmarshal(responseBody, &response); err != nil {
-					return err
-				}
-
-				num, err := strconv.ParseInt(response.Data.RequestID, 10, 64)
+				num, err := c.returnLatestID(median)
 				if err != nil {
 					return err
 				}
@@ -284,4 +233,25 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 	}
 
 	return g.Wait()
+}
+
+func (c *cosmwasmChecker) returnLatestID(request string) (int64, error) {
+	url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, request)
+	resp, err := http.Get(url)
+	if err != nil {
+		return -1, err
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return -1, err
+	}
+
+	var response Response
+	if err := json.Unmarshal(responseBody, &response); err != nil {
+		return -1, err
+	}
+
+	return strconv.ParseInt(response.Data.RequestID, 10, 64)
 }

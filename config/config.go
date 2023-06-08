@@ -15,13 +15,16 @@ type (
 	}
 
 	Relayer struct {
-		ContractAddress  string `mapstructure:"contract_address" validate:"required"`
-		RelayerAddress   string `mapstructure:"relayer_address" validate:"required"`
-		Denom            string `mapstructure:"denom" validate:"required"`
-		WarningThreshold int64  `mapstructure:"warning_threshold" validate:"required"`
-		Threshold        int64  `mapstructure:"threshold" validate:"required"`
-		ReportMedian     bool   `mapstructure:"report_median" validate:"required"`
-		ReportDeviation  bool   `mapstructure:"report_deviation" validate:"required"`
+		ContractAddress string `mapstructure:"contract_address" validate:"required"`
+		RelayerAddress  string `mapstructure:"relayer_address" validate:"required"`
+		Denom           string `mapstructure:"denom" validate:"required"`
+
+		// threshold is less than warning threshold
+		WarningThreshold int64 `mapstructure:"warning_threshold" validate:"required"`
+		Threshold        int64 `mapstructure:"threshold" validate:"required"`
+
+		ReportMedian    bool `mapstructure:"report_median" validate:"required"`
+		ReportDeviation bool `mapstructure:"report_deviation" validate:"required"`
 	}
 
 	AccessToken struct {

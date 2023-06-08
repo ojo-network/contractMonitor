@@ -1,13 +1,13 @@
-cron_interval="30s"
+cron_interval="10s"
 
 [address_map.juno-testnet]
-contract_address = "juno1yqm8q56hjv8sd4r37wdhkkdt3wu45gc5ptrjmd9k0nhvavl0354qwcf249"
-relayer_address = "juno1rkhrfuq7k2k68k0hctrmv8efyxul6tgn8hny6y"
-denom="ujuno"
-warning_threshold=5000000
-threshold=1000000
+contract_address = "juno1v7na2m53cm3rkxxpe0k62yra3nkpeq7dy5zr528795fgymxrlz2ql4jsqp"
+relayer_address = "juno1mlaew6aj273mw6j4uhtcvpv7ujjt0zc8az7lre"
+denom="ujunox"
+warning_threshold=500000000
+threshold=10000000000
 report_median=true
 report_deviation=true
 
 [network_rpc]
-juno-testnet = "https://juno-api.polkachu.com"
+juno-testnet = "https://juno-testnet-api.polkachu.com"

@@ -13,7 +13,7 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/spf13/cobra"
 
-	"github.com/ojo-network/contractMonitor/config"
+	"github.com/ojo-network/relayerMonitor/config"
 )
 
 const (
@@ -31,18 +31,14 @@ type IDS struct {
 var (
 	slackchan chan slack.Attachment
 	wg        sync.WaitGroup
-
-	LowBalance              = "Low Balance"
-	StaleRateRequestID      = "No New Request id"
-	StaleMedianRequestID    = "No New Median id"
-	StaleDeviationRequestID = "No New Deviation id"
 )
 
 const (
-	RELAYER      = "cw-relayer"
-	RATE_ID      = "Rate Request id"
-	MEDIAN_ID    = "Median Rate Request id"
-	DEVIATION_ID = "Deviation Request id"
+	StaleRateRequestID      = "No New Request id"
+	StaleMedianRequestID    = "No New Median id"
+	StaleDeviationRequestID = "No New Deviation id"
+	LowBalance              = "Low Balance"
+	Relayer                 = "Relayer"
 )
 
 var rootCmd = &cobra.Command{
@@ -76,6 +72,8 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	logger.Info().Msg("Relayer monitor starting...")
+
 	ctx, cancel := context.WithCancel(cmd.Context())
 	for network, asset := range config.AddressMap {
 		rpc := config.NetworkRpc[network]
@@ -94,6 +92,8 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 			asset.ReportDeviation,
 			logger,
 		)
+
+		logger.Info().Str("network", network).Str("relayer address", asset.RelayerAddress).Msg("monitoring")
 	}
 
 	go func() {
@@ -111,9 +111,9 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info().Msg("closing monitor, waiting for all routines to exit")
+			logger.Info().Msg("closing monitor, waiting for all monitors to exit")
 
-			wg.Wait() // waiting for all goroutines to exit
+			wg.Wait()
 			close(slackchan)
 			return nil
 		}
