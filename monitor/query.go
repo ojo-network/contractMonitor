@@ -214,7 +214,7 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 					return err
 				}
 
-				if num <= c.deviationID {
+				if num <= c.medianID {
 					slackchan <- createStaleRequestIDAttachment(
 						StaleMedianRequestID,
 						c.deviationID,
