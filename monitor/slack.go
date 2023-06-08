@@ -42,7 +42,7 @@ func createLowBalanceAttachment(warning bool, balance, denom, relayerAddress, ne
 	return attachment
 }
 
-func createStaleRequestIDAttachment(requestTitle string, oldRequestID int64, currentRequestID int64, contractAddress, network string) slack.Attachment {
+func createStaleRequestIDAttachment(requestTitle, contractAddress, network string, oldRequestID, currentRequestID int64) slack.Attachment {
 	attachment := slack.Attachment{
 		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
 		Title:   fmt.Sprintf(":exclamation: %s", requestTitle),

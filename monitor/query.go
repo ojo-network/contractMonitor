@@ -167,10 +167,10 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 			if num <= c.requestID {
 				slackchan <- createStaleRequestIDAttachment(
 					StaleRateRequestID,
-					c.requestID,
-					num,
 					c.contractAddress,
 					c.network,
+					c.requestID,
+					num,
 				)
 				return nil
 			}
@@ -191,10 +191,10 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 				if num <= c.deviationID {
 					slackchan <- createStaleRequestIDAttachment(
 						StaleDeviationRequestID,
-						c.deviationID,
-						num,
 						c.contractAddress,
 						c.network,
+						c.deviationID,
+						num,
 					)
 					return nil
 				}
@@ -217,10 +217,10 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 				if num <= c.medianID {
 					slackchan <- createStaleRequestIDAttachment(
 						StaleMedianRequestID,
-						c.deviationID,
-						num,
 						c.contractAddress,
 						c.network,
+						c.medianID,
+						num,
 					)
 					return nil
 				}
