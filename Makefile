@@ -1,4 +1,8 @@
-BUILD_DIR ?= $(CURDIR)/build
+build:
+	go build -o ./build/ ./...
 
-build: go.sum
-	CGO_ENABLED=0 go build -mod=readonly -o $(BUILD_DIR)/monitor ./...
+start:
+	${MAKE} build
+	./contractMonitor ./config.toml
+
+.PHONY: build start

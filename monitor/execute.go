@@ -16,21 +16,36 @@ import (
 	"github.com/ojo-network/contractMonitor/config"
 )
 
+// base64 encoding for queries
 const (
+	// {"get_deviation_ref": {"symbol": "ATOM"}}
 	deviation = "eyJnZXRfZGV2aWF0aW9uX3JlZiI6IHsic3ltYm9sIjogIkFUT00ifX0="
+
+	// {"get_median_ref": {"symbol": "ATOM"}}
+	median = "eyJnZXRfbWVkaWFuX3JlZiI6IHsic3ltYm9sIjogIkFUT00ifX0="
+
+	// {"get_ref": {"symbol": "ATOM"}}
+	rate = "eyJnZXRfcmVmIjogeyJzeW1ib2wiOiAiQVRPTSJ9fQ=="
 )
+
+type IDS struct {
+	requestID   int64
+	medianID    int64
+	deviationID int64
+}
 
 var (
-	slackchan  chan slack.Attachment
-	errchan    chan error
-	check      sync.Mutex
-	globallist map[string]int64
-
-	LowBalance     = "Low Balance"
-	StaleRequestID = "No New Request id"
+	slackChan chan slack.Attachment
+	wg        sync.WaitGroup
 )
 
-const RELAYER = "cw-relayer"
+const (
+	StaleRateRequestID      = "No New Request id"
+	StaleMedianRequestID    = "No New Median id"
+	StaleDeviationRequestID = "No New Deviation id"
+	LowBalance              = "Low Balance"
+	Relayer                 = "Relayer"
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "monitor [config-file]",
@@ -44,6 +59,8 @@ func Execute() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	rootCmd.AddCommand(getVersionCmd())
 }
 
 func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
@@ -53,57 +70,46 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	client := slack.New(accessToken.SlackToken, slack.OptionDebug(false))
-	slackchan = make(chan slack.Attachment, len(config.AddressMap))
-
-	errchan = make(chan error, len(config.AddressMap))
-	globallist = make(map[string]int64)
+	slackChan = make(chan slack.Attachment, len(config.AddressMap))
 
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
-
 	cronDuration, err := time.ParseDuration(config.CronInterval)
 	if err != nil {
 		return err
 	}
 
+	logger.Info().Msg("Contract monitor starting...")
+
 	ctx, cancel := context.WithCancel(cmd.Context())
-	var wg sync.WaitGroup
 	for network, asset := range config.AddressMap {
-		globallist[asset.ContractAddress] = 0
 		rpc := config.NetworkRpc[network]
 		wg.Add(1)
-		go func(ctx context.Context, threshold, warning int64, network, denom, rpc, relayer, contractAddress string) {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					if err := checkBalance(threshold, warning, network, denom, rpc, relayer); err != nil {
-						errchan <- err
-					}
+		newCosmwasmChecker(
+			ctx,
+			cronDuration,
+			asset.Threshold,
+			asset.WarningThreshold,
+			network,
+			asset.Denom,
+			rpc,
+			asset.ContractAddress,
+			asset.RelayerAddress,
+			asset.ReportMedian,
+			asset.ReportDeviation,
+			logger,
+		)
 
-					err := checkQuery(network, rpc, contractAddress)
-					if err != nil {
-						errchan <- err
-					}
-
-					time.Sleep(cronDuration)
-				}
-			}
-		}(ctx, asset.Threshold, asset.WarningThreshold, network, asset.Denom, rpc, asset.RelayerAddress, asset.ContractAddress)
+		logger.Info().Str("network", network).
+			Str("relayer address", asset.RelayerAddress).
+			Str("contract address", asset.ContractAddress).
+			Msg("monitoring")
 	}
 
 	go func() {
-		for err := range errchan {
-			logger.Err(err).Msg("Error in monitoring")
-		}
-	}()
-
-	go func() {
-		for attachment := range slackchan {
+		for attachment := range slackChan {
 			_, timestamp, err := client.PostMessage(accessToken.SlackChannel, slack.MsgOptionAttachments(attachment))
 			if err != nil {
-				errchan <- err
+				logger.Err(err).Msg("error posting slack message")
 			}
 
 			logger.Info().Str("Posted at timestamp", timestamp).Msg("slack message posted")
@@ -114,11 +120,10 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info().Msg("closing monitor, waiting for all routines to exit")
+			logger.Info().Msg("closing monitor, waiting for all monitors to exit")
 
-			wg.Wait() // waiting for all goroutines to exit
-			close(errchan)
-			close(slackchan)
+			wg.Wait()
+			close(slackChan)
 			return nil
 		}
 	}
