@@ -1,6 +1,8 @@
 build:
-	go build -o ./ ./...
+	go build -o ./build/ ./...
 
 start:
 	${MAKE} build
 	./contractMonitor ./config.toml
+
+.PHONY: build start

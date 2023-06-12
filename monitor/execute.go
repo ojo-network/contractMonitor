@@ -16,10 +16,16 @@ import (
 	"github.com/ojo-network/contractMonitor/config"
 )
 
+// base64 encoding for queries
 const (
+	// {"get_deviation_ref": {"symbol": "ATOM"}}
 	deviation = "eyJnZXRfZGV2aWF0aW9uX3JlZiI6IHsic3ltYm9sIjogIkFUT00ifX0="
-	median    = "eyJnZXRfbWVkaWFuX3JlZiI6IHsic3ltYm9sIjogIkFUT00ifX0="
-	rate      = "eyJnZXRfcmVmIjogeyJzeW1ib2wiOiAiQVRPTSJ9fQ=="
+
+	// {"get_median_ref": {"symbol": "ATOM"}}
+	median = "eyJnZXRfbWVkaWFuX3JlZiI6IHsic3ltYm9sIjogIkFUT00ifX0="
+
+	// {"get_ref": {"symbol": "ATOM"}}
+	rate = "eyJnZXRfcmVmIjogeyJzeW1ib2wiOiAiQVRPTSJ9fQ=="
 )
 
 type IDS struct {
@@ -29,7 +35,7 @@ type IDS struct {
 }
 
 var (
-	slackchan chan slack.Attachment
+	slackChan chan slack.Attachment
 	wg        sync.WaitGroup
 )
 
@@ -64,7 +70,7 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	client := slack.New(accessToken.SlackToken, slack.OptionDebug(false))
-	slackchan = make(chan slack.Attachment, len(config.AddressMap))
+	slackChan = make(chan slack.Attachment, len(config.AddressMap))
 
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 	cronDuration, err := time.ParseDuration(config.CronInterval)
@@ -100,7 +106,7 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	go func() {
-		for attachment := range slackchan {
+		for attachment := range slackChan {
 			_, timestamp, err := client.PostMessage(accessToken.SlackChannel, slack.MsgOptionAttachments(attachment))
 			if err != nil {
 				logger.Err(err).Msg("error posting slack message")
@@ -117,7 +123,7 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 			logger.Info().Msg("closing monitor, waiting for all monitors to exit")
 
 			wg.Wait()
-			close(slackchan)
+			close(slackChan)
 			return nil
 		}
 	}

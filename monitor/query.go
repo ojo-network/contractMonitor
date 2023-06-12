@@ -141,7 +141,7 @@ func (c *cosmwasmChecker) checkBalance() error {
 		}
 
 		if amount <= c.warning {
-			slackchan <- createLowBalanceAttachment(
+			slackChan <- createLowBalanceAttachment(
 				(amount <= c.warning) && (amount > c.threshold),
 				balance.Amount,
 				c.denom,
@@ -165,7 +165,7 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 			}
 
 			if num <= c.requestID {
-				slackchan <- createStaleRequestIDAttachment(
+				slackChan <- createStaleRequestIDAttachment(
 					StaleRateRequestID,
 					c.contractAddress,
 					c.network,
@@ -189,7 +189,7 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 				}
 
 				if num <= c.deviationID {
-					slackchan <- createStaleRequestIDAttachment(
+					slackChan <- createStaleRequestIDAttachment(
 						StaleDeviationRequestID,
 						c.contractAddress,
 						c.network,
@@ -215,7 +215,7 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 				}
 
 				if num <= c.medianID {
-					slackchan <- createStaleRequestIDAttachment(
+					slackChan <- createStaleRequestIDAttachment(
 						StaleMedianRequestID,
 						c.contractAddress,
 						c.network,
