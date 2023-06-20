@@ -2,8 +2,6 @@ name: Release contract monitor
 
 on:
   push:
-    branches:
-      - main
 
     # Sequence of patterns matched against refs/tags
     tags:
