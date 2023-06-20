@@ -70,12 +70,10 @@ jobs:
           GLIBC_VERSION: ${{ env.GLIBC_VERSION }}
 
   secret-wrapper:
-    jobs:
-      build:
-      strategy:
-        matrix:
-          os: [ubuntu-latest, ubuntu-20.04]
-
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        runs-on: ${{matrix.os}}
         steps:
           - name: Checkout code
             uses: actions/checkout@v3
