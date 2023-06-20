@@ -1,3 +1,9 @@
+# ide and env files
 .idea
 .env
+
+# build
 build
+
+# deps
+jsMonitor/node_modules

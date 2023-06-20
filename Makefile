@@ -3,6 +3,6 @@ build:
 
 start:
 	${MAKE} build
-	./contractMonitor ./config.toml
+	./build/contractMonitor ./config.toml
 
 .PHONY: build start

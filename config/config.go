@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
@@ -9,9 +10,8 @@ import (
 
 type (
 	Config struct {
-		CronInterval string             `mapstructure:"cron_interval"`
-		AddressMap   map[string]Relayer `mapstructure:"address_map"`
-		NetworkRpc   map[string]string  `mapstructure:"network_rpc"`
+		AddressMap map[string]Relayer `mapstructure:"address_map"`
+		NetworkRpc map[string]string  `mapstructure:"network_rpc"`
 	}
 
 	Relayer struct {
@@ -23,8 +23,9 @@ type (
 		WarningThreshold int64 `mapstructure:"warning_threshold" validate:"required"`
 		Threshold        int64 `mapstructure:"threshold" validate:"required"`
 
-		ReportMedian    bool `mapstructure:"report_median" validate:"required"`
-		ReportDeviation bool `mapstructure:"report_deviation" validate:"required"`
+		ReportMedian    bool   `mapstructure:"report_median" validate:"required"`
+		ReportDeviation bool   `mapstructure:"report_deviation" validate:"required"`
+		CronInterval    string `mapstructure:"cron_interval" validate:"required"`
 	}
 
 	AccessToken struct {
@@ -64,5 +65,16 @@ func ParseConfig(args []string) (*Config, *AccessToken, error) {
 		SlackChannel: channel,
 	}
 
-	return &config, accessToken, nil
+	return &config, accessToken, config.validate()
+}
+
+func (c *Config) validate() error {
+	// check for cron interval parse
+	for _, network := range c.AddressMap {
+		if _, err := time.ParseDuration(network.CronInterval); err != nil {
+			return err
+		}
+
+	}
+	return nil
 }

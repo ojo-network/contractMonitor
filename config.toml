@@ -1,13 +1,23 @@
-cron_interval="50s"
-
 [address_map.juno]
 contract_address = "juno1yqm8q56hjv8sd4r37wdhkkdt3wu45gc5ptrjmd9k0nhvavl0354qwcf249"
 relayer_address = "juno1rkhrfuq7k2k68k0hctrmv8efyxul6tgn8hny6y"
 denom="ujuno"
-warning_threshold=500000000000000000
+warning_threshold=5000000000000000000
 threshold=1000000
 report_median = true
 report_deviation = true
+cron_interval="50s"
+
+[address_map.secret]
+contract_address = "secret1s69h2zed8pqfqmfhwfn58ehjsm997efzmd80qe"
+relayer_address = "secret1cm4wctlnkaszv7s5ccxuw50wuj3lg8lqn567sz"
+denom="uscrt"
+warning_threshold=5000000000000000000
+threshold=1000000
+report_median = true
+report_deviation = true
+cron_interval="10s"
 
 [network_rpc]
 juno = "https://juno-api.polkachu.com"
+secret ="http://localhost:3000"

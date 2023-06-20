@@ -1,0 +1,18 @@
+{
+  "name": "jsmonitor",
+  "version": "1.0.0",
+  "description": "node monitor",
+  "main": "index.js",
+  "scripts": {
+    "pkg": "pkg ."
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "secretjs": "^1.9.3"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}
