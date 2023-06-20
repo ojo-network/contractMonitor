@@ -2,8 +2,9 @@ const express = require('express');
 const { SecretNetworkClient, grpc }= require( "secretjs");
 const fs = require('fs');
 
-// Load configuration
-const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+// Load config
+const configFilePath = process.argv[1];
+const config = JSON.parse(fs.readFileSync(configFilePath, 'utf8'));
 const { url, chain_id,code_hash } = config;
 
 const app = express();
