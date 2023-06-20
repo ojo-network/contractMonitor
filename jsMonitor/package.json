@@ -4,7 +4,7 @@
   "description": "node monitor",
   "main": "index.js",
   "scripts": {
-    "pkg": "pkg ."
+    "pkg": "pkg -t node18-linux index.js -o jsmonitor"
   },
   "author": "",
   "license": "ISC",
