@@ -73,7 +73,6 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	slackChan = make(chan slack.Attachment, len(config.AddressMap))
 
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
-	cronDuration, err := time.ParseDuration(config.CronInterval)
 	if err != nil {
 		return err
 	}
@@ -83,6 +82,8 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(cmd.Context())
 	for network, asset := range config.AddressMap {
 		rpc := config.NetworkRpc[network]
+		cronDuration, _ := time.ParseDuration(config.AddressMap[network].CronInterval)
+
 		wg.Add(1)
 		newCosmwasmChecker(
 			ctx,
