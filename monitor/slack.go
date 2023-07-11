@@ -75,3 +75,72 @@ func createStaleRequestIDAttachment(requestTitle, contractAddress, network strin
 
 	return attachment
 }
+
+func BalanceAttachment(balance, denom, relayerAddress, network string) slack.Attachment {
+	attachment := slack.Attachment{
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
+		Title:   fmt.Sprintf(CurrentBalance),
+		Color:   "good",
+		Fields: []slack.AttachmentField{
+			{
+				Title: "Relayer Address",
+				Value: fmt.Sprintf("```%s```", relayerAddress),
+				Short: false,
+			},
+			{
+				Title: "Current balance",
+				Value: fmt.Sprintf("```%s%s```", balance, denom),
+				Short: true,
+			},
+			{
+				Title: "Network",
+				Value: fmt.Sprintf("```%s```", network),
+				Short: true,
+			},
+		},
+		Footer: "Monitor Bot",
+		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
+	}
+
+	return attachment
+}
+
+func RequestIDAttachment(contractAddress, network string, currentRequestID, medianID, deviationID int64) slack.Attachment {
+	attachment := slack.Attachment{
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
+		Title:   fmt.Sprintf(RequestIDS),
+		Color:   "good",
+		Fields: []slack.AttachmentField{
+			{
+				Title: "Contract Address",
+				Value: fmt.Sprintf("```%s```", contractAddress),
+				Short: false,
+			},
+			{
+				Title: "Current Request ID",
+				Value: fmt.Sprintf("```%d```", currentRequestID),
+				Short: true,
+			},
+			{
+				Title: "Current Median ID",
+				Value: fmt.Sprintf("```%d```", medianID),
+				Short: true,
+			},
+			{
+				Title: "Current Deviation ID",
+				Value: fmt.Sprintf("```%d```", deviationID),
+				Short: true,
+			},
+
+			{
+				Title: "Network",
+				Value: fmt.Sprintf("```%s```", network),
+				Short: false,
+			},
+		},
+		Footer: "Monitor Bot",
+		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
+	}
+
+	return attachment
+}

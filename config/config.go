@@ -31,6 +31,7 @@ type (
 	AccessToken struct {
 		SlackToken   string
 		SlackChannel string
+		AppToken     string
 	}
 )
 
@@ -60,9 +61,15 @@ func ParseConfig(args []string) (*Config, *AccessToken, error) {
 		channel = os.Getenv("SLACK_CHANNEL")
 	}
 
+	APP := viper.GetString("APP_TOKEN")
+	if channel == "" {
+		channel = os.Getenv("APP_TOKEN")
+	}
+
 	accessToken := &AccessToken{
 		SlackToken:   token,
 		SlackChannel: channel,
+		AppToken:     APP,
 	}
 
 	return &config, accessToken, config.validate()

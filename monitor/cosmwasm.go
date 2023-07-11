@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ojo-network/contractMonitor/config"
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -41,6 +43,7 @@ type cosmwasmChecker struct {
 	warning         int64
 	network         string
 	denom           string
+	balance         string
 	rpc             string
 	contractAddress string
 	relayerAddress  string
@@ -49,7 +52,84 @@ type cosmwasmChecker struct {
 	requestID       int64
 	deviationID     int64
 	medianID        int64
+	timeout         time.Time
 	logger          zerolog.Logger
+	mut             sync.Mutex
+}
+
+type CosmwasmService struct {
+	services map[string]*cosmwasmChecker
+}
+
+func StartCosmwasmServices(ctx context.Context, logger zerolog.Logger, config config.Config) *CosmwasmService {
+	csLogger := logger.With().Str("module", "cosmwasm-service").Logger()
+	cms := CosmwasmService{
+		services: make(map[string]*cosmwasmChecker),
+	}
+	for network, asset := range config.AddressMap {
+		eCtx := ctx
+		rpc := config.NetworkRpc[network]
+		cronDuration, _ := time.ParseDuration(config.AddressMap[network].CronInterval)
+		service := newCosmwasmChecker(
+			eCtx,
+			cronDuration,
+			asset.Threshold,
+			asset.WarningThreshold,
+			network,
+			asset.Denom,
+			rpc,
+			asset.ContractAddress,
+			asset.RelayerAddress,
+			asset.ReportMedian,
+			asset.ReportDeviation,
+			logger,
+		)
+
+		cms.services[network] = service
+
+		csLogger.Info().Str("network", network).
+			Str("relayer address", asset.RelayerAddress).
+			Str("contract address", asset.ContractAddress).
+			Msg("monitoring")
+	}
+
+	return &cms
+}
+
+func (cws *CosmwasmService) GetBalance(network string) (balance, denom, relayerAddress string, err error) {
+	service, found := cws.services[network]
+	if !found {
+		err = fmt.Errorf("network not found")
+		return
+	}
+
+	balance, denom, relayerAddress = service.GetBalance()
+	return
+}
+
+func (cws *CosmwasmService) GetIDS(network string) (rate int64, median int64, deviation int64, contractAddress string, err error) {
+	service, found := cws.services[network]
+	if !found {
+		err = fmt.Errorf("network not found")
+		return
+	}
+
+	rate, median, deviation = service.GetIds()
+	contractAddress = service.contractAddress
+	return
+}
+
+func (cws *CosmwasmService) SetTimeout(network string, timeout time.Duration) (err error) {
+	service, found := cws.services[network]
+	if !found {
+		err = fmt.Errorf("network not found")
+		return
+	}
+
+	service.mut.Lock()
+	defer service.mut.Unlock()
+	service.timeout = time.Now().Add(timeout)
+	return
 }
 
 func newCosmwasmChecker(
@@ -65,12 +145,13 @@ func newCosmwasmChecker(
 	reportMedian bool,
 	reportDeviation bool,
 	logger zerolog.Logger,
-) {
+) *cosmwasmChecker {
 	checker := &cosmwasmChecker{
 		threshold:       threshold,
 		warning:         warning,
 		network:         network,
 		denom:           denom,
+		timeout:         time.Now(),
 		rpc:             rpc,
 		contractAddress: contractAddress,
 		relayerAddress:  relayerAddress,
@@ -80,13 +161,14 @@ func newCosmwasmChecker(
 	}
 
 	go checker.startCron(ctx, duration)
+
+	return checker
 }
 
 func (c *cosmwasmChecker) startCron(ctx context.Context, duration time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
-			wg.Done()
 			return
 
 		default:
@@ -140,23 +222,40 @@ func (c *cosmwasmChecker) checkBalance() error {
 			return err
 		}
 
+		// update latest balance
+		c.balance = balance.Amount
+
 		if amount <= c.warning {
-			slackChan <- createLowBalanceAttachment(
-				(amount <= c.warning) && (amount > c.threshold),
-				balance.Amount,
-				c.denom,
-				c.relayerAddress,
-				c.network,
-			)
+			if time.Now().After(c.timeout) {
+				slackChan <- createLowBalanceAttachment(
+					(amount <= c.warning) && (amount > c.threshold),
+					balance.Amount,
+					c.denom,
+					c.relayerAddress,
+					c.network,
+				)
+			}
 		}
 	}
 
 	return nil
 }
 
+func (c *cosmwasmChecker) GetBalance() (string, string, string) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	return c.balance, c.denom, c.relayerAddress
+}
+
+func (c *cosmwasmChecker) GetIds() (int64, int64, int64) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	return c.requestID, c.deviationID, c.medianID
+}
+
 func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 	g, _ := errgroup.WithContext(ctx)
-
+	post := time.Now().After(c.timeout)
 	g.Go(
 		func() error {
 			num, err := c.returnLatestID(rate)
@@ -165,14 +264,16 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 			}
 
 			if num <= c.requestID {
-				slackChan <- createStaleRequestIDAttachment(
-					StaleRateRequestID,
-					c.contractAddress,
-					c.network,
-					c.requestID,
-					num,
-				)
-				return nil
+				if post {
+					slackChan <- createStaleRequestIDAttachment(
+						StaleRateRequestID,
+						c.contractAddress,
+						c.network,
+						c.requestID,
+						num,
+					)
+					return nil
+				}
 			}
 
 			c.requestID = num
@@ -189,14 +290,16 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 				}
 
 				if num <= c.deviationID {
-					slackChan <- createStaleRequestIDAttachment(
-						StaleDeviationRequestID,
-						c.contractAddress,
-						c.network,
-						c.deviationID,
-						num,
-					)
-					return nil
+					if post {
+						slackChan <- createStaleRequestIDAttachment(
+							StaleDeviationRequestID,
+							c.contractAddress,
+							c.network,
+							c.deviationID,
+							num,
+						)
+						return nil
+					}
 				}
 
 				// update to latest id
@@ -213,16 +316,17 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-
-				if num <= c.medianID {
-					slackChan <- createStaleRequestIDAttachment(
-						StaleMedianRequestID,
-						c.contractAddress,
-						c.network,
-						c.medianID,
-						num,
-					)
-					return nil
+				if post {
+					if num <= c.medianID {
+						slackChan <- createStaleRequestIDAttachment(
+							StaleMedianRequestID,
+							c.contractAddress,
+							c.network,
+							c.medianID,
+							num,
+						)
+						return nil
+					}
 				}
 
 				// update to latest id
