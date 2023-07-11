@@ -79,7 +79,7 @@ func createStaleRequestIDAttachment(requestTitle, contractAddress, network strin
 func BalanceAttachment(balance, denom, relayerAddress, network string) slack.Attachment {
 	attachment := slack.Attachment{
 		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
-		Title:   fmt.Sprintf(CurrentBalance),
+		Title:   fmt.Sprint(CurrentBalance),
 		Color:   "good",
 		Fields: []slack.AttachmentField{
 			{
@@ -108,7 +108,7 @@ func BalanceAttachment(balance, denom, relayerAddress, network string) slack.Att
 func RequestIDAttachment(contractAddress, network string, currentRequestID, medianID, deviationID int64) slack.Attachment {
 	attachment := slack.Attachment{
 		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
-		Title:   fmt.Sprintf(RequestIDS),
+		Title:   fmt.Sprint(RequestIDS),
 		Color:   "good",
 		Fields: []slack.AttachmentField{
 			{

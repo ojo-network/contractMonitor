@@ -67,11 +67,11 @@ func StartCosmwasmServices(ctx context.Context, logger zerolog.Logger, config co
 		services: make(map[string]*cosmwasmChecker),
 	}
 	for network, asset := range config.AddressMap {
-		eCtx := ctx
 		rpc := config.NetworkRpc[network]
 		cronDuration, _ := time.ParseDuration(config.AddressMap[network].CronInterval)
+		wg.Add(1)
 		service := newCosmwasmChecker(
-			eCtx,
+			ctx,
 			cronDuration,
 			asset.Threshold,
 			asset.WarningThreshold,
@@ -169,6 +169,7 @@ func (c *cosmwasmChecker) startCron(ctx context.Context, duration time.Duration)
 	for {
 		select {
 		case <-ctx.Done():
+			wg.Done()
 			return
 
 		default:

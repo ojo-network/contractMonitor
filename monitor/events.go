@@ -16,10 +16,12 @@ func NewEventService(ctx context.Context, csmService *CosmwasmService, logger ze
 	)
 
 	log := logger.With().Str("service", "event").Logger()
+	wg.Add(1)
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
+				wg.Done()
 				return
 
 			case evt := <-client.Events:

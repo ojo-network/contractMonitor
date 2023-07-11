@@ -36,7 +36,7 @@ type (
 )
 
 func ParseConfig(args []string) (*Config, *AccessToken, error) {
-	godotenv.Load(".env")
+	godotenv.Load(".env") //nolint
 	viper.SetConfigFile(args[0])
 	viper.AutomaticEnv()
 
@@ -61,7 +61,7 @@ func ParseConfig(args []string) (*Config, *AccessToken, error) {
 		channel = os.Getenv("SLACK_CHANNEL")
 	}
 
-	APP := viper.GetString("APP_TOKEN")
+	appToken := viper.GetString("APP_TOKEN")
 	if channel == "" {
 		channel = os.Getenv("APP_TOKEN")
 	}
@@ -69,7 +69,7 @@ func ParseConfig(args []string) (*Config, *AccessToken, error) {
 	accessToken := &AccessToken{
 		SlackToken:   token,
 		SlackChannel: channel,
-		AppToken:     APP,
+		AppToken:     appToken,
 	}
 
 	return &config, accessToken, config.validate()

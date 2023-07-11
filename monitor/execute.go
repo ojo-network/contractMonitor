@@ -25,12 +25,6 @@ const (
 	rate = "eyJnZXRfcmVmIjogeyJzeW1ib2wiOiAiQVRPTSJ9fQ=="
 )
 
-type IDS struct {
-	requestID   int64
-	medianID    int64
-	deviationID int64
-}
-
 var (
 	slackChan chan slack.Attachment
 	wg        sync.WaitGroup
@@ -100,15 +94,13 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	trapSignal(cancel)
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Info().Msg("closing monitor, waiting for all monitors to exit")
 
-			close(slackChan)
-			return nil
-		}
-	}
+	<-ctx.Done()
+	logger.Info().Msg("closing monitor, waiting for all monitors to exit")
+	wg.Wait()
+
+	close(slackChan)
+	return nil
 }
 
 func trapSignal(cancel context.CancelFunc) {
@@ -117,6 +109,7 @@ func trapSignal(cancel context.CancelFunc) {
 
 	go func() {
 		<-sigCh
+		fmt.Println("closing everything")
 		cancel()
 	}()
 }
