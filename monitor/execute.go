@@ -107,7 +107,7 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 
 func trapSignal(cancel context.CancelFunc) {
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGQUIT)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 
 	go func() {
 		<-sigCh

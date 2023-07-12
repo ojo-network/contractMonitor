@@ -174,7 +174,7 @@ func (c *cosmwasmChecker) startCron(ctx context.Context, duration time.Duration)
 			return
 
 		default:
-			err := c.checkBalance()
+			err := c.checkBalance(ctx)
 			if err != nil {
 				c.logger.Err(err).
 					Str("relayer", c.relayerAddress).
@@ -209,9 +209,14 @@ func (c *cosmwasmChecker) GetIds() (int64, int64, int64) {
 	return c.requestID, c.deviationID, c.medianID
 }
 
-func (c *cosmwasmChecker) checkBalance() error {
+func (c *cosmwasmChecker) checkBalance(ctx context.Context) error {
 	bal := fmt.Sprintf("%s/cosmos/bank/v1beta1/balances/%s", c.rpc, c.relayerAddress)
-	balResp, err := http.Get(bal)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, bal, nil)
+	if err != nil {
+		return err
+	}
+
+	balResp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -256,11 +261,11 @@ func (c *cosmwasmChecker) checkBalance() error {
 }
 
 func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
-	g, _ := errgroup.WithContext(ctx)
+	g, ctx := errgroup.WithContext(ctx)
 	post := time.Now().After(c.timeout)
 	g.Go(
 		func() error {
-			num, err := c.returnLatestID(rate)
+			num, err := c.returnLatestID(ctx, rate)
 			if err != nil {
 				return err
 			}
@@ -286,7 +291,7 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 	if c.reportDeviation {
 		g.Go(
 			func() error {
-				num, err := c.returnLatestID(deviation)
+				num, err := c.returnLatestID(ctx, deviation)
 				if err != nil {
 					return err
 				}
@@ -314,7 +319,7 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 	if c.reportMedian {
 		g.Go(
 			func() error {
-				num, err := c.returnLatestID(median)
+				num, err := c.returnLatestID(ctx, median)
 				if err != nil {
 					return err
 				}
@@ -341,9 +346,14 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 	return g.Wait()
 }
 
-func (c *cosmwasmChecker) returnLatestID(request string) (int64, error) {
+func (c *cosmwasmChecker) returnLatestID(ctx context.Context, request string) (int64, error) {
 	url := fmt.Sprintf("%s/cosmwasm/wasm/v1/contract/%s/smart/%s", c.rpc, c.contractAddress, request)
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return -1, err
 	}

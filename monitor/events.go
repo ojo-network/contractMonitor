@@ -86,7 +86,11 @@ func handleSlashCommand(cms *CosmwasmService, command *slack.SlashCommand) error
 			return err
 		}
 
-		return cms.SetTimeout(network, timeout)
+		if err = cms.SetTimeout(network, timeout); err != nil {
+			return err
+		}
+
+		slackChan <- postTimeout(network, timeoutStr)
 	}
 	return nil
 }

@@ -154,3 +154,13 @@ func postErr(err error) slack.Attachment {
 
 	return attachment
 }
+
+func postTimeout(network, timeout string) slack.Attachment {
+	attachment := slack.Attachment{
+		Pretext: "Notification timeout",
+		Text:    fmt.Sprintf("notification timeout on network %s for %s", network, timeout),
+		Color:   "good",
+	}
+
+	return attachment
+}
