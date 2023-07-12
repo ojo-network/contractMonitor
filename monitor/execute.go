@@ -3,14 +3,16 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"github.com/ojo-network/contractMonitor/config"
-	"github.com/rs/zerolog"
-	"github.com/slack-go/slack"
-	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/rs/zerolog"
+	"github.com/slack-go/slack"
+	"github.com/spf13/cobra"
+
+	"github.com/ojo-network/contractMonitor/config"
 )
 
 // base64 encoding for queries
@@ -109,7 +111,6 @@ func trapSignal(cancel context.CancelFunc) {
 
 	go func() {
 		<-sigCh
-		fmt.Println("closing everything")
 		cancel()
 	}()
 }

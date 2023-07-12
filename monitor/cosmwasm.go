@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ojo-network/contractMonitor/config"
 	"io"
 	"net/http"
 	"strconv"
@@ -13,6 +12,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/ojo-network/contractMonitor/config"
 )
 
 type (

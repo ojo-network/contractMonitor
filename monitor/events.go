@@ -3,11 +3,12 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/rs/zerolog"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/socketmode"
-	"strings"
-	"time"
 )
 
 func NewEventService(ctx context.Context, csmService *CosmwasmService, logger zerolog.Logger, slackClient *slack.Client) error {
@@ -59,12 +60,12 @@ func handleSlashCommand(cms *CosmwasmService, command *slack.SlashCommand) error
 	network := commands[0]
 	switch command.Command {
 	case "/balance":
-		balance, denom, relayer, err := cms.GetBalance(network)
+		balance, denom, relayerAddress, err := cms.GetBalance(network)
 		if err != nil {
 			return err
 		}
 
-		slackChan <- balanceAttachment(balance, denom, relayer, network)
+		slackChan <- balanceAttachment(balance, denom, relayerAddress, network)
 
 	case "/relayerstatus":
 		rid, mid, did, address, err := cms.GetIDS(network)
@@ -78,6 +79,7 @@ func handleSlashCommand(cms *CosmwasmService, command *slack.SlashCommand) error
 		if len(commands) < 2 {
 			return fmt.Errorf("no timeout provided")
 		}
+
 		timeoutStr := commands[1]
 		timeout, err := time.ParseDuration(timeoutStr)
 		if err != nil {
