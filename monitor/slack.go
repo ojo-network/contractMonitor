@@ -76,7 +76,7 @@ func createStaleRequestIDAttachment(requestTitle, contractAddress, network strin
 	return attachment
 }
 
-func BalanceAttachment(balance, denom, relayerAddress, network string) slack.Attachment {
+func balanceAttachment(balance, denom, relayerAddress, network string) slack.Attachment {
 	attachment := slack.Attachment{
 		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
 		Title:   fmt.Sprint(CurrentBalance),
@@ -105,7 +105,7 @@ func BalanceAttachment(balance, denom, relayerAddress, network string) slack.Att
 	return attachment
 }
 
-func RequestIDAttachment(contractAddress, network string, currentRequestID, medianID, deviationID int64) slack.Attachment {
+func requestIDAttachment(contractAddress, network string, currentRequestID, medianID, deviationID int64) slack.Attachment {
 	attachment := slack.Attachment{
 		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
 		Title:   fmt.Sprint(RequestIDS),
@@ -140,6 +140,16 @@ func RequestIDAttachment(contractAddress, network string, currentRequestID, medi
 		},
 		Footer: "Monitor Bot",
 		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
+	}
+
+	return attachment
+}
+
+func postErr(err error) slack.Attachment {
+	attachment := slack.Attachment{
+		Pretext: "An error has occurred:",
+		Text:    fmt.Sprintf("event slash command error: %s", err),
+		Color:   "danger",
 	}
 
 	return attachment

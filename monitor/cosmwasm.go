@@ -196,6 +196,18 @@ func (c *cosmwasmChecker) startCron(ctx context.Context, duration time.Duration)
 	}
 }
 
+func (c *cosmwasmChecker) GetBalance() (string, string, string) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	return c.balance, c.denom, c.relayerAddress
+}
+
+func (c *cosmwasmChecker) GetIds() (int64, int64, int64) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	return c.requestID, c.deviationID, c.medianID
+}
+
 func (c *cosmwasmChecker) checkBalance() error {
 	bal := fmt.Sprintf("%s/cosmos/bank/v1beta1/balances/%s", c.rpc, c.relayerAddress)
 	balResp, err := http.Get(bal)
@@ -240,18 +252,6 @@ func (c *cosmwasmChecker) checkBalance() error {
 	}
 
 	return nil
-}
-
-func (c *cosmwasmChecker) GetBalance() (string, string, string) {
-	c.mut.Lock()
-	defer c.mut.Unlock()
-	return c.balance, c.denom, c.relayerAddress
-}
-
-func (c *cosmwasmChecker) GetIds() (int64, int64, int64) {
-	c.mut.Lock()
-	defer c.mut.Unlock()
-	return c.requestID, c.deviationID, c.medianID
 }
 
 func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {

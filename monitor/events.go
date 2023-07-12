@@ -39,7 +39,9 @@ func NewEventService(ctx context.Context, csmService *CosmwasmService, logger ze
 					client.Ack(*evt.Request)
 
 					err := handleSlashCommand(csmService, &command)
-					log.Err(err).Send()
+					if err != nil {
+						slackChan <- postErr(err)
+					}
 				}
 			}
 		}
@@ -62,7 +64,7 @@ func handleSlashCommand(cms *CosmwasmService, command *slack.SlashCommand) error
 			return err
 		}
 
-		slackChan <- BalanceAttachment(balance, denom, relayer, network)
+		slackChan <- balanceAttachment(balance, denom, relayer, network)
 
 	case "/relayerstatus":
 		rid, mid, did, address, err := cms.GetIDS(network)
@@ -70,7 +72,7 @@ func handleSlashCommand(cms *CosmwasmService, command *slack.SlashCommand) error
 			return err
 		}
 
-		slackChan <- RequestIDAttachment(address, network, rid, mid, did)
+		slackChan <- requestIDAttachment(address, network, rid, mid, did)
 
 	case "/timeout":
 		if len(commands) < 2 {
@@ -84,6 +86,5 @@ func handleSlashCommand(cms *CosmwasmService, command *slack.SlashCommand) error
 
 		return cms.SetTimeout(network, timeout)
 	}
-
 	return nil
 }
