@@ -1,0 +1,13 @@
+[address_map.juno]
+contract_address = "juno1v7na2m53cm3rkxxpe0k62yra3nkpeq7dy5zr528795fgymxrlz2ql4jsqp"
+relayer_address = "juno1mlaew6aj273mw6j4uhtcvpv7ujjt0zc8az7lre"
+denom="ujunox"
+warning_threshold=5000000
+threshold=1000000
+report_median = true
+report_deviation = true
+cron_interval="250s"
+
+
+[network_rpc]
+juno = "https://juno-testnet-api.polkachu.com/"
