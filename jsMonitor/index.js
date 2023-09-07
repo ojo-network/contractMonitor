@@ -5,7 +5,7 @@ const fs = require('fs');
 // Load config
 const configFilePath = process.argv[2];
 const config = JSON.parse(fs.readFileSync(configFilePath, 'utf8'));
-const { url, chain_id,code_hash } = config;
+const { url, chain_id,code_hash,port } = config;
 
 const app = express();
 const secretjs = new SecretNetworkClient({
@@ -72,4 +72,4 @@ app.get('/cosmwasm/wasm/v1/contract/:contractAddress/smart/:request', async (req
   }
 });
 
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
