@@ -31,11 +31,12 @@ type (
 	AccessToken struct {
 		SlackToken   string
 		SlackChannel string
+		AppToken     string
 	}
 )
 
 func ParseConfig(args []string) (*Config, *AccessToken, error) {
-	godotenv.Load(".env")
+	godotenv.Load(".env") //nolint
 	viper.SetConfigFile(args[0])
 	viper.AutomaticEnv()
 
@@ -60,9 +61,15 @@ func ParseConfig(args []string) (*Config, *AccessToken, error) {
 		channel = os.Getenv("SLACK_CHANNEL")
 	}
 
+	appToken := viper.GetString("APP_TOKEN")
+	if channel == "" {
+		channel = os.Getenv("APP_TOKEN")
+	}
+
 	accessToken := &AccessToken{
 		SlackToken:   token,
 		SlackChannel: channel,
+		AppToken:     appToken,
 	}
 
 	return &config, accessToken, config.validate()

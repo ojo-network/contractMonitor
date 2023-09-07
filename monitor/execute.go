@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/slack-go/slack"
@@ -28,12 +27,6 @@ const (
 	rate = "eyJnZXRfcmVmIjogeyJzeW1ib2wiOiAiQVRPTSJ9fQ=="
 )
 
-type IDS struct {
-	requestID   int64
-	medianID    int64
-	deviationID int64
-}
-
 var (
 	slackChan chan slack.Attachment
 	wg        sync.WaitGroup
@@ -44,6 +37,8 @@ const (
 	StaleMedianRequestID    = "No New Median id"
 	StaleDeviationRequestID = "No New Deviation id"
 	LowBalance              = "Low Balance"
+	CurrentBalance          = "Balance"
+	RequestIDS              = "Request IDS"
 	Relayer                 = "Relayer"
 )
 
@@ -64,13 +59,13 @@ func Execute() {
 }
 
 func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
-	config, accessToken, err := config.ParseConfig(args)
+	cfg, accessToken, err := config.ParseConfig(args)
 	if err != nil {
 		return err
 	}
 
-	client := slack.New(accessToken.SlackToken, slack.OptionDebug(false))
-	slackChan = make(chan slack.Attachment, len(config.AddressMap))
+	client := slack.New(accessToken.SlackToken, slack.OptionDebug(false), slack.OptionAppLevelToken(accessToken.AppToken))
+	slackChan = make(chan slack.Attachment, len(cfg.AddressMap))
 
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 	if err != nil {
@@ -78,34 +73,6 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	logger.Info().Msg("Contract monitor starting...")
-
-	ctx, cancel := context.WithCancel(cmd.Context())
-	for network, asset := range config.AddressMap {
-		rpc := config.NetworkRpc[network]
-		cronDuration, _ := time.ParseDuration(config.AddressMap[network].CronInterval)
-
-		wg.Add(1)
-		newCosmwasmChecker(
-			ctx,
-			cronDuration,
-			asset.Threshold,
-			asset.WarningThreshold,
-			network,
-			asset.Denom,
-			rpc,
-			asset.ContractAddress,
-			asset.RelayerAddress,
-			asset.ReportMedian,
-			asset.ReportDeviation,
-			logger,
-		)
-
-		logger.Info().Str("network", network).
-			Str("relayer address", asset.RelayerAddress).
-			Str("contract address", asset.ContractAddress).
-			Msg("monitoring")
-	}
-
 	go func() {
 		for attachment := range slackChan {
 			_, timestamp, err := client.PostMessage(accessToken.SlackChannel, slack.MsgOptionAttachments(attachment))
@@ -117,22 +84,30 @@ func cwRelayerCmdHandler(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	trapSignal(cancel)
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Info().Msg("closing monitor, waiting for all monitors to exit")
+	ctx, cancel := context.WithCancel(cmd.Context())
+	// starting cron services
+	cms := StartCosmwasmServices(ctx, logger, *cfg)
 
-			wg.Wait()
-			close(slackChan)
-			return nil
-		}
+	// starting slash command service
+	err = NewEventService(ctx, cms, logger, client)
+	if err != nil {
+		cancel()
+		return err
 	}
+
+	trapSignal(cancel)
+
+	<-ctx.Done()
+	logger.Info().Msg("closing monitor, waiting for all monitors to exit")
+	wg.Wait()
+
+	close(slackChan)
+	return nil
 }
 
 func trapSignal(cancel context.CancelFunc) {
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGQUIT)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 
 	go func() {
 		<-sigCh
