@@ -8,6 +8,17 @@ report_median = true
 report_deviation = true
 cron_interval="250s"
 
+[address_map.secret]
+contract_address = "secret1aa8c3mxwu5kpcd8hlmkvjhzhqu37q8cj6eapyz"
+relayer_address = "secret19uywplnd25gzxgc3t8pyqsl2tcse8heag2s6av"
+denom="uscrt"
+warning_threshold=5000000
+threshold=1000000
+report_median = true
+report_deviation = true
+cron_interval="180s"
+
 
 [network_rpc]
 juno = "https://juno-testnet-api.polkachu.com/"
+secret ="http://localhost:3000"
