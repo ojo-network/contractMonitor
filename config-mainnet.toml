@@ -1,0 +1,45 @@
+[address_map.juno]
+contract_address = "juno1yqm8q56hjv8sd4r37wdhkkdt3wu45gc5ptrjmd9k0nhvavl0354qwcf249"
+relayer_address = "juno1rkhrfuq7k2k68k0hctrmv8efyxul6tgn8hny6y"
+denom="ujuno"
+warning_threshold=5000000
+threshold=1000000
+report_median = true
+report_deviation = true
+cron_interval="150s"
+
+[address_map.secret]
+contract_address = "secret1s69h2zed8pqfqmfhwfn58ehjsm997efzmd80qe"
+relayer_address = "secret1cm4wctlnkaszv7s5ccxuw50wuj3lg8lqn567sz"
+denom="uscrt"
+warning_threshold=5000000
+threshold=1000000
+report_median = true
+report_deviation = true
+cron_interval="180s"
+
+[address_map.neutron]
+contract_address = "neutron123lcmhhl79x9ghf2dallkvvxuqwl7fmp9g6avjzt2zyrvddme7eqsvtr07"
+relayer_address = "neutron1xhmxhxekescrqrv54dp30vx3ngcc97pe9mq2k4"
+denom="untrn"
+warning_threshold=5000000
+threshold=1000000
+report_median = true
+report_deviation = true
+cron_interval="150s"
+
+[address_map.comdex]
+contract_address = "comdex1d9w3v30r26xuckatahmeelut92jl6uc8suzmlpp0dm08drwlskjscvg83a"
+relayer_address = "comdex1nmps9c8j4zfzu572nv9fdlr3y40wm4ae88s8wy"
+denom="ucmdx"
+warning_threshold=5000000
+threshold=1000000
+report_median = true
+report_deviation = true
+cron_interval="200s"
+
+[network_rpc]
+juno = "https://juno-api.polkachu.com"
+secret ="http://localhost:3000"
+neutron = "https://lcd-neutron.whispernode.com"
+comdex = "https://comdex-api.polkachu.com/"
