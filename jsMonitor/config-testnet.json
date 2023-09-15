@@ -1,0 +1,6 @@
+{
+  "url":"https://api.pulsar3.scrttestnet.com",
+  "chain_id":"pulsar-3",
+  "code_hash":"287b53f3f5e70c3ec8a60aa0147374100d4a42770d6bae1d2fcac50bd7ce4691",
+  "port": 3000
+}
