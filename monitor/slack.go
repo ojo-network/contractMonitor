@@ -9,25 +9,26 @@ import (
 	"github.com/slack-go/slack"
 )
 
-func createLowBalanceAttachment(warning bool, balance, denom, relayerAddress, network string) slack.Attachment {
+func (c *cosmwasmChecker) createLowBalanceAttachment(amount int64, balance string) slack.Attachment {
+	warning := (amount <= c.warning) && (amount > c.threshold)
 	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", c.network, Relayer),
 		Title:   fmt.Sprintf(":exclamation: %s", LowBalance),
 		Color:   "danger",
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Relayer Address",
-				Value: fmt.Sprintf("```%s```", relayerAddress),
+				Value: fmt.Sprintf("```%s```", c.relayerAddress),
 				Short: false,
 			},
 			{
 				Title: "Current balance",
-				Value: fmt.Sprintf("```%s%s```", balance, denom),
+				Value: fmt.Sprintf("```%s%s```", balance, c.denom),
 				Short: true,
 			},
 			{
 				Title: "Network",
-				Value: fmt.Sprintf("```%s```", network),
+				Value: fmt.Sprintf("```%s```", c.network),
 				Short: true,
 			},
 		},
@@ -42,30 +43,24 @@ func createLowBalanceAttachment(warning bool, balance, denom, relayerAddress, ne
 	return attachment
 }
 
-func createStaleRequestIDAttachment(requestTitle, contractAddress, network string, oldRequestID, currentRequestID int64) slack.Attachment {
+func (c *cosmwasmChecker) createStaleRequestIDAttachment() *slack.Attachment {
+	if !(c.rateError || c.medianError || c.deviationError) {
+		// no errors
+		return nil
+	}
+
 	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
-		Title:   fmt.Sprintf(":exclamation: %s", requestTitle),
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", c.network, Relayer),
 		Color:   "danger",
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Contract Address",
-				Value: fmt.Sprintf("```%s```", contractAddress),
+				Value: fmt.Sprintf("```%s```", c.contractAddress),
 				Short: false,
 			},
 			{
-				Title: "Current Request ID",
-				Value: fmt.Sprintf("```%d```", currentRequestID),
-				Short: true,
-			},
-			{
-				Title: "Old Request ID",
-				Value: fmt.Sprintf("```%d```", oldRequestID),
-				Short: true,
-			},
-			{
 				Title: "Network",
-				Value: fmt.Sprintf("```%s```", network),
+				Value: fmt.Sprintf("```%s```", c.network),
 				Short: false,
 			},
 		},
@@ -73,28 +68,67 @@ func createStaleRequestIDAttachment(requestTitle, contractAddress, network strin
 		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
 	}
 
-	return attachment
+	title := ":exclamation: Stale"
+	if c.rateError {
+		attachment.Fields = append(attachment.Fields, slack.AttachmentField{
+			Title: "Stale Request ID",
+			Value: fmt.Sprintf("```%d```", c.requestID),
+			Short: true,
+		})
+
+		title = fmt.Sprintf("%s |%s|", title, "Request")
+		c.rateError = false
+	}
+
+	if c.medianError {
+		attachment.Fields = append(attachment.Fields, slack.AttachmentField{
+			Title: "Stale Median ID",
+			Value: fmt.Sprintf("```%d```", c.medianID),
+			Short: true,
+		})
+
+		title = fmt.Sprintf("%s |%s|", title, "Median")
+
+		c.medianError = false
+	}
+
+	if c.deviationError {
+		attachment.Fields = append(attachment.Fields, slack.AttachmentField{
+			Title: "Stale Deviation ID",
+			Value: fmt.Sprintf("```%d```", c.deviationID),
+			Short: true,
+		})
+
+		title = fmt.Sprintf("%s |%s|", title, "Deviation")
+
+		c.deviationError = false
+	}
+	attachment.Title = fmt.Sprintf("%s %s", title, "ID")
+
+	return &attachment
 }
 
-func balanceAttachment(balance, denom, relayerAddress, network string) slack.Attachment {
+func (c *cosmwasmChecker) currentBalanceAttachment() *slack.Attachment {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", c.network, Relayer),
 		Title:   fmt.Sprint(CurrentBalance),
 		Color:   "good",
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Relayer Address",
-				Value: fmt.Sprintf("```%s```", relayerAddress),
+				Value: fmt.Sprintf("```%s```", c.relayerAddress),
 				Short: false,
 			},
 			{
 				Title: "Current balance",
-				Value: fmt.Sprintf("```%s%s```", balance, denom),
+				Value: fmt.Sprintf("```%s%s```", c.balance, c.denom),
 				Short: true,
 			},
 			{
 				Title: "Network",
-				Value: fmt.Sprintf("```%s```", network),
+				Value: fmt.Sprintf("```%s```", c.network),
 				Short: true,
 			},
 		},
@@ -102,39 +136,40 @@ func balanceAttachment(balance, denom, relayerAddress, network string) slack.Att
 		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
 	}
 
-	return attachment
+	return &attachment
 }
 
-func requestIDAttachment(contractAddress, network string, currentRequestID, medianID, deviationID int64) slack.Attachment {
+func (c *cosmwasmChecker) currentRequestIDAttachment() *slack.Attachment {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	attachment := slack.Attachment{
-		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", network, Relayer),
+		Pretext: fmt.Sprintf("*Network*: %s\n*Relayer*: %s", c.network, Relayer),
 		Title:   fmt.Sprint(RequestIDS),
 		Color:   "good",
 		Fields: []slack.AttachmentField{
 			{
 				Title: "Contract Address",
-				Value: fmt.Sprintf("```%s```", contractAddress),
+				Value: fmt.Sprintf("```%s```", c.contractAddress),
 				Short: false,
 			},
 			{
 				Title: "Current Request ID",
-				Value: fmt.Sprintf("```%d```", currentRequestID),
+				Value: fmt.Sprintf("```%d```", c.requestID),
 				Short: true,
 			},
 			{
 				Title: "Current Median ID",
-				Value: fmt.Sprintf("```%d```", medianID),
+				Value: fmt.Sprintf("```%d```", c.medianID),
 				Short: true,
 			},
 			{
 				Title: "Current Deviation ID",
-				Value: fmt.Sprintf("```%d```", deviationID),
+				Value: fmt.Sprintf("```%d```", c.deviationID),
 				Short: true,
 			},
-
 			{
 				Title: "Network",
-				Value: fmt.Sprintf("```%s```", network),
+				Value: fmt.Sprintf("```%s```", c.network),
 				Short: false,
 			},
 		},
@@ -142,7 +177,7 @@ func requestIDAttachment(contractAddress, network string, currentRequestID, medi
 		Ts:     json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
 	}
 
-	return attachment
+	return &attachment
 }
 
 func postErr(err error) slack.Attachment {
