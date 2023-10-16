@@ -76,7 +76,7 @@ func (c *cosmwasmChecker) createStaleRequestIDAttachment() *slack.Attachment {
 			Short: true,
 		})
 
-		title = fmt.Sprintf("%s %s", title, "Request")
+		title = fmt.Sprintf("%s |%s|", title, "Request")
 		c.rateError = false
 	}
 
@@ -87,7 +87,7 @@ func (c *cosmwasmChecker) createStaleRequestIDAttachment() *slack.Attachment {
 			Short: true,
 		})
 
-		title = fmt.Sprintf("%s %s", title, "Median")
+		title = fmt.Sprintf("%s |%s|", title, "Median")
 
 		c.medianError = false
 	}
@@ -99,7 +99,7 @@ func (c *cosmwasmChecker) createStaleRequestIDAttachment() *slack.Attachment {
 			Short: true,
 		})
 
-		title = fmt.Sprintf("%s %s", title, "Deviation")
+		title = fmt.Sprintf("%s |%s|", title, "Deviation")
 
 		c.deviationError = false
 	}
