@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/slack-go/slack"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ojo-network/contractMonitor/config"
@@ -53,6 +54,9 @@ type cosmwasmChecker struct {
 	requestID       int64
 	deviationID     int64
 	medianID        int64
+	rateError       bool
+	medianError     bool
+	deviationError  bool
 	timeout         time.Time
 	logger          zerolog.Logger
 	mut             sync.Mutex
@@ -97,27 +101,24 @@ func StartCosmwasmServices(ctx context.Context, logger zerolog.Logger, config co
 	return &cms
 }
 
-func (cws *CosmwasmService) GetBalance(network string) (balance, denom, relayerAddress string, err error) {
+func (cws *CosmwasmService) GetBalanceAttachment(network string) (*slack.Attachment, error) {
 	service, found := cws.services[network]
 	if !found {
-		err = fmt.Errorf("network not found")
-		return
+		err := fmt.Errorf("network not found")
+		return nil, err
 	}
 
-	balance, denom, relayerAddress = service.GetBalance()
-	return
+	return service.currentBalanceAttachment(), nil
 }
 
-func (cws *CosmwasmService) GetIDS(network string) (rate int64, median int64, deviation int64, contractAddress string, err error) {
+func (cws *CosmwasmService) GetIdAttachment(network string) (*slack.Attachment, error) {
 	service, found := cws.services[network]
 	if !found {
-		err = fmt.Errorf("network not found")
-		return
+		err := fmt.Errorf("network not found")
+		return nil, err
 	}
 
-	rate, median, deviation = service.GetIds()
-	contractAddress = service.contractAddress
-	return
+	return service.currentRequestIDAttachment(), nil
 }
 
 func (cws *CosmwasmService) SetTimeout(network string, timeout time.Duration) (err error) {
@@ -192,6 +193,12 @@ func (c *cosmwasmChecker) startCron(ctx context.Context, duration time.Duration)
 					Msg("Error in querying request ids")
 			}
 
+			// check for rate, median or deviation error
+			msg := c.createStaleRequestIDAttachment()
+			if msg != nil {
+				slackChan <- *msg
+			}
+
 			time.Sleep(duration)
 		}
 	}
@@ -246,12 +253,9 @@ func (c *cosmwasmChecker) checkBalance(ctx context.Context) error {
 
 		if amount <= c.warning {
 			if time.Now().After(c.timeout) {
-				slackChan <- createLowBalanceAttachment(
-					(amount <= c.warning) && (amount > c.threshold),
+				slackChan <- c.createLowBalanceAttachment(
+					amount,
 					balance.Amount,
-					c.denom,
-					c.relayerAddress,
-					c.network,
 				)
 			}
 		}
@@ -263,6 +267,10 @@ func (c *cosmwasmChecker) checkBalance(ctx context.Context) error {
 func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 	post := time.Now().After(c.timeout)
+	if !post {
+		return nil
+	}
+
 	g.Go(
 		func() error {
 			num, err := c.returnLatestID(ctx, rate)
@@ -271,18 +279,11 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 			}
 
 			if num <= c.requestID {
-				if post {
-					slackChan <- createStaleRequestIDAttachment(
-						StaleRateRequestID,
-						c.contractAddress,
-						c.network,
-						c.requestID,
-						num,
-					)
-					return nil
-				}
+				c.rateError = true
+				return nil
 			}
 
+			// update the latest request id
 			c.requestID = num
 			return nil
 		},
@@ -297,19 +298,11 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 				}
 
 				if num <= c.deviationID {
-					if post {
-						slackChan <- createStaleRequestIDAttachment(
-							StaleDeviationRequestID,
-							c.contractAddress,
-							c.network,
-							c.deviationID,
-							num,
-						)
-						return nil
-					}
+					c.deviationError = true
+					return nil
 				}
 
-				// update to latest id
+				// update to latest deviation id
 				c.deviationID = num
 				return nil
 			},
@@ -323,20 +316,12 @@ func (c *cosmwasmChecker) checkQuery(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-				if post {
-					if num <= c.medianID {
-						slackChan <- createStaleRequestIDAttachment(
-							StaleMedianRequestID,
-							c.contractAddress,
-							c.network,
-							c.medianID,
-							num,
-						)
-						return nil
-					}
+				if num <= c.medianID {
+					c.medianError = true
+					return nil
 				}
 
-				// update to latest id
+				// update to latest median id
 				c.medianID = num
 				return nil
 			},

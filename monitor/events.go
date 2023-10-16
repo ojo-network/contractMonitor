@@ -60,20 +60,20 @@ func handleSlashCommand(cms *CosmwasmService, command *slack.SlashCommand) error
 	network := commands[0]
 	switch command.Command {
 	case "/balance":
-		balance, denom, relayerAddress, err := cms.GetBalance(network)
+		msg, err := cms.GetBalanceAttachment(network)
 		if err != nil {
 			return err
 		}
 
-		slackChan <- balanceAttachment(balance, denom, relayerAddress, network)
+		slackChan <- *msg
 
 	case "/relayerstatus":
-		rid, mid, did, address, err := cms.GetIDS(network)
+		msg, err := cms.GetIdAttachment(network)
 		if err != nil {
 			return err
 		}
 
-		slackChan <- requestIDAttachment(address, network, rid, mid, did)
+		slackChan <- *msg
 
 	case "/timeout":
 		if len(commands) < 2 {
